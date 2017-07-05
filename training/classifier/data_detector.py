@@ -24,7 +24,7 @@ class DataBowl3Detector(Dataset):
         self.isScale = config['aug_scale']
         self.r_rand = config['r_rand_crop']
         self.augtype = config['augtype']
-        data_dir = config['datadir']
+        datadir = config['datadir']
         self.pad_value = config['pad_value']
 
         self.split_comber = split_comber
@@ -32,14 +32,14 @@ class DataBowl3Detector(Dataset):
         if phase!='test':
             idcs = [f for f in idcs if f not in self.blacklist]
 
-        self.filenames = [os.path.join(data_dir, '%s_clean.npy' % idx) for idx in idcs]
+        self.filenames = [os.path.join(datadir, '%s_clean.npy' % idx) for idx in idcs]
         self.kagglenames = [f for f in self.filenames if len(f.split('/')[-1].split('_')[0])>20]
         self.lunanames = [f for f in self.filenames if len(f.split('/')[-1].split('_')[0])<20]
 
         labels = []
 
         for idx in idcs:
-            l = np.load(os.path.join(data_dir, '%s_label.npy' %idx))
+            l = np.load(os.path.join(datadir, '%s_label.npy' %idx))
             if np.all(l==0):
                 l=np.array([])
             labels.append(l)

@@ -4,6 +4,7 @@ import collections
 import random
 import warnings
 
+from os import path as p
 import numpy as np
 import torch
 
@@ -16,12 +17,12 @@ from layers import iou
 
 
 class DataBowl3Detector(Dataset):
-    def __init__(self, filelist, config, phase = 'train', split_comber=None):
+    def __init__(self, dirlist, config, phase = 'train', split_comber=None):
         assert(phase == 'train' or phase == 'val' or phase == 'test')
         sizelim = config['sizelim']/config['reso']
         sizelim2 = config['sizelim2']/config['reso']
         sizelim3 = config['sizelim3']/config['reso']
-        data_dir = config['datadir']
+        datadir = config['datadir']
 
         self.phase = phase
         self.max_stride = config['max_stride']
@@ -33,22 +34,23 @@ class DataBowl3Detector(Dataset):
         self.pad_value = config['pad_value']
         self.split_comber = split_comber
 
-        idcs = filelist
+        idcs = dirlist
 
         if phase != 'test':
             idcs = [f for f in idcs if f not in self.blacklist]
 
-        self.channel = config['chanel']
+        self.channel = config['channel']
 
-        if self.channel==2:
+        if self.channel == 2:
             self.filenames = [
-                os.path.join(data_dir, '%s_merge.npy' % idx) for idx in idcs]
-
-        elif self.channel ==1:
-            if 'cleanimg' in config and  config['cleanimg']:
-                self.filenames = [os.path.join(data_dir, '%s_clean.npy' % idx) for idx in idcs]
+                p.join(datadir, '%s_merge.npy' % idx) for idx in idcs]
+        elif self.channel == 1:
+            if config.get('cleaning'):
+                self.filenames = [
+                    p.join(datadir, '%s_clean.npy' % idx) for idx in idcs]
             else:
-                self.filenames = [os.path.join(data_dir, '%s_img.npy' % idx) for idx in idcs]
+                self.filenames = [
+                    p.join(datadir, '%s_img.npy' % idx) for idx in idcs]
 
         self.kagglenames = [
             f for f in self.filenames
@@ -63,11 +65,11 @@ class DataBowl3Detector(Dataset):
         for idx in idcs:
             if config['luna_raw'] ==True:
                 try:
-                    l = np.load(os.path.join(data_dir, '%s_label_raw.npy' % idx))
+                    l = np.load(p.join(datadir, '%s_label_raw.npy' % idx))
                 except:
-                    l = np.load(os.path.join(data_dir, '%s_label.npy' %idx))
+                    l = np.load(p.join(datadir, '%s_label.npy' %idx))
             else:
-                l = np.load(os.path.join(data_dir, '%s_label.npy' %idx))
+                l = np.load(p.join(datadir, '%s_label.npy' %idx))
 
             labels.append(l)
 
@@ -194,13 +196,13 @@ def augment(sample, target, bboxes, coord, ifflip = True, ifrotate=True, ifswap 
 
                 if counter == 3:
                     break
-    if ifswap:
-        if sample.shape[1]==sample.shape[2] and sample.shape[1]==sample.shape[3]:
-            axisorder = np.random.permutation(3)
-            sample = np.transpose(sample,np.concatenate([[0],axisorder+1]))
-            coord = np.transpose(coord,np.concatenate([[0],axisorder+1]))
-            target[:3] = target[:3][axisorder]
-            bboxes[:,:3] = bboxes[:,:3][:,axisorder]
+
+    if ifswap and sample.shape[1] == sample.shape[2] == sample.shape[3]:
+        axisorder = np.random.permutation(3)
+        sample = np.transpose(sample,np.concatenate([[0],axisorder+1]))
+        coord = np.transpose(coord,np.concatenate([[0],axisorder+1]))
+        target[:3] = target[:3][axisorder]
+        bboxes[:,:3] = bboxes[:,:3][:,axisorder]
 
     if ifflip:
         # flipid = np.array([np.random.randint(2),np.random.randint(2),np.random.randint(2)])*2-1

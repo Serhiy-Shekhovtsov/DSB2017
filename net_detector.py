@@ -4,7 +4,7 @@ from layers import *
 
 config = {}
 config['anchors'] = [ 10.0, 30.0, 60.]
-config['chanel'] = 1
+config['channel'] = 1
 config['crop_size'] = [128, 128, 128]
 config['stride'] = 4
 config['datadir'] = '/run/shm/preprocess_1_3/'
@@ -24,7 +24,7 @@ config['aug_scale'] = True
 config['r_rand_crop'] = 0.3
 config['pad_value'] = 170
 config['luna_raw'] = True
-config['cleanimg'] = True
+config['cleaning'] = True
 config['augtype'] = {'flip':True,'swap':False,'scale':True,'rotate':False}
 config['blacklist'] = ['868b024d9fa388b7ddab12ec1c06af38','990fbe3f0a1b53878669967b9afd1441','adc3bbc63d40f8761c59be10f1e504c3']
 

@@ -34,8 +34,7 @@ def process_mask(mask):
         convex_mask[i_layer] = mask2
 
     struct = generate_binary_structure(3, 1)
-    dilatedMask = binary_dilation(convex_mask, structure=struct, iterations=10)
-    return dilatedMask
+    return binary_dilation(convex_mask, structure=struct, iterations=10)
 
 
 def lumTrans(img):
@@ -43,8 +42,7 @@ def lumTrans(img):
     newimg = (img - lungwin[0]) / (lungwin[1] - lungwin[0])
     newimg[newimg < 0] = 0
     newimg[newimg > 1] = 1
-    newimg = (newimg * 255).astype('uint8')
-    return newimg
+    return (newimg * 255).astype('uint8')
 
 
 def resample(imgs, spacing, new_spacing, order=2):

@@ -11,7 +11,7 @@ import warnings
 from scipy.ndimage.interpolation import rotate
 
 class DataBowl3Detector(Dataset):
-    def __init__(self, data_dir, split_path, config, phase = 'train',split_comber=None):
+    def __init__(self, datadir, split_path, config, phase = 'train',split_comber=None):
         assert(phase == 'train' or phase == 'val' or phase == 'test')
         self.phase = phase
         self.max_stride = config['max_stride']
@@ -29,14 +29,14 @@ class DataBowl3Detector(Dataset):
         if phase!='test':
             idcs = [f for f in idcs if (f not in self.blacklist)]
 
-        self.filenames = [os.path.join(data_dir, '%s_clean.npy' % idx) for idx in idcs]
+        self.filenames = [os.path.join(datadir, '%s_clean.npy' % idx) for idx in idcs]
         self.kagglenames = [f for f in self.filenames if len(f.split('/')[-1].split('_')[0])>20]
         self.lunanames = [f for f in self.filenames if len(f.split('/')[-1].split('_')[0])<20]
 
         labels = []
 
         for idx in idcs:
-            l = np.load(os.path.join(data_dir, '%s_label.npy' %idx))
+            l = np.load(os.path.join(datadir, '%s_label.npy' %idx))
             if np.all(l==0):
                 l=np.array([])
             labels.append(l)

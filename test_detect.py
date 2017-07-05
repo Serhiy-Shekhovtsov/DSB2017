@@ -5,6 +5,7 @@ import shutil
 import sys
 
 from importlib import import_module
+from os import path as p
 
 import numpy as np
 import torch
@@ -34,11 +35,7 @@ def test_detect(data_loader, net, get_pbb, save_dir, config, n_gpu):
         shortname = name.split('_clean')[0]
         data = data[0][0]
         coord = coord[0][0]
-        isfeat = False
-        if 'output_feature' in config:
-            if config['output_feature']:
-                isfeat = True
-
+        isfeat = config.get('output_feature')
         n_per_run = n_gpu
 
         print(data.size())
@@ -77,18 +74,16 @@ def test_detect(data_loader, net, get_pbb, save_dir, config, n_gpu):
         pbb, mask = get_pbb(output, thresh, ismask=True)
 
         if isfeat:
-            feature_selected = feature[mask[0],mask[1],mask[2]]
-            np.save(os.path.join(save_dir, shortname+'_feature.npy'), feature_selected)
-        #tp,fp,fn,_ = acc(pbb,lbb,0,0.1,0.1)
-        #print([len(tp),len(fp),len(fn)])
+            feature_selected = feature[mask[0], mask[1], mask[2]]
+            filepath = p.join(save_dir, shortname + '_feature.npy')
+            np.save(filepath, feature_selected)
+
+        # tp, fp, fn, _ = acc(pbb,lbb,0,0.1,0.1)
+        # print([len(tp), len(fp), len(fn)])
         print([i_name,shortname])
         e = time.time()
-        
-        np.save(os.path.join(save_dir, shortname+'_pbb.npy'), pbb)
-        np.save(os.path.join(save_dir, shortname+'_lbb.npy'), lbb)
+        np.save(p.join(save_dir, shortname + '_pbb.npy'), pbb)
+        np.save(p.join(save_dir, shortname + '_lbb.npy'), lbb)
+
     end_time = time.time()
-
-
     print('elapsed time is %3.2f seconds' % (end_time - start_time))
-    print
-    print

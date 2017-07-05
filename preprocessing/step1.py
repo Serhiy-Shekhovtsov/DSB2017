@@ -193,7 +193,7 @@ def all_slice_analysis(bw, spacing, cut_num=0, vol_limit=[0.68, 8.2], area_th=6e
 def fill_hole(bw):
     # fill 3d holes
     label = measure.label(~bw)
-    # idendify corner components
+    # identify corner components
     bg_label = set([label[0, 0, 0], label[0, 0, -1], label[0, -1, 0], label[0, -1, -1], \
                     label[-1, 0, 0], label[-1, 0, -1], label[-1, -1, 0], label[-1, -1, -1]])
     return ~np.in1d(label, list(bg_label)).reshape(label.shape)

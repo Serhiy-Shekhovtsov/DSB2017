@@ -4,6 +4,8 @@ import collections
 import random
 import warnings
 
+from os import path as p
+
 import torch
 import numpy as np
 import pandas
@@ -16,7 +18,7 @@ from layers import nms, iou
 
 
 class DataBowl3Classifier(Dataset):
-    def __init__(self, split, config, phase='train'):
+    def __init__(self, dirlist, config, phase='train'):
         assert(phase in {'train', 'val', 'test'})
 
         self.random_sample = config['random_sample']
@@ -35,29 +37,28 @@ class DataBowl3Classifier(Dataset):
         self.candidate_box = []
         self.pbb_label = []
 
-        idcs = split
+        idcs = dirlist
 
         self.filenames = [
-            os.path.join(datadir, '%s_clean.npy' % idx.split('-')[0])
-            for idx in idcs]
+            p.join(datadir, '%s_clean.npy' % idx.split('-')[0]) for idx in idcs]
 
         if self.phase != 'test':
             self.yset = 1 - np.array(
                 [f.split('-')[1][2] for f in idcs]).astype('int')
 
         for idx in idcs:
-            pbb = np.load(os.path.join(bboxpath, idx + '_pbb.npy'))
+            pbb = np.load(p.join(bboxpath, idx + '_pbb.npy'))
             pbb = pbb[pbb[:,0] > config['conf_th']]
             pbb = nms(pbb, config['nms_th'])
 
-            lbb = np.load(os.path.join(bboxpath, idx + '_lbb.npy'))
+            lbb = np.load(p.join(bboxpath, idx + '_lbb.npy'))
             pbb_label = []
 
-            for p in pbb:
+            for pb in pbb:
                 isnod = False
 
-                for l in lbb:
-                    score = iou(p[1:5], l)
+                for lb in lbb:
+                    score = iou(pb[1:5], lb)
 
                     if score > config['detect_th']:
                         isnod = True

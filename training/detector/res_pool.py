@@ -4,7 +4,7 @@ from layers import *
 
 config = {}
 config['anchors'] = [ 10.0, 25.0, 40.0]
-config['chanel'] = 2
+config['channel'] = 2
 config['crop_size'] = [64, 128, 128]
 config['stride'] = [2,4,4]
 config['max_stride'] = 16

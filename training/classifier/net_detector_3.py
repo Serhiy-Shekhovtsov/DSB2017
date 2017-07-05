@@ -8,7 +8,7 @@ from config_training import config as config_training
 
 config = {}
 config['anchors'] = [ 10.0, 30.0, 60.]
-config['chanel'] = 1
+config['channel'] = 1
 config['crop_size'] = [128, 128, 128]
 config['stride'] = 4
 config['datadir'] = config_training['preprocess_result_path']
