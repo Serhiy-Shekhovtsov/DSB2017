@@ -95,7 +95,8 @@ class DataBowl3Detector(Dataset):
         t = time.time()
         np.random.seed(int(str(t % 1)[2:7]))#seed according to time
 
-	isRandomImg  = False
+        isRandomImg = False
+
         if self.phase !='test':
             if idx >= len(self.bboxes):
                 isRandom = True
@@ -109,7 +110,7 @@ class DataBowl3Detector(Dataset):
         if self.phase != 'test':
             if not isRandomImg:
                 bbox = self.bboxes[idx]
-		filename = self.filenames[int(bbox[0])]
+                filename = self.filenames[int(bbox[0])]
                 imgs = np.load(filename)[0:self.channel]
                 bboxes = self.sample_bboxes[int(bbox[0])]
                 isScale = self.augtype['scale'] and (self.phase=='train')
@@ -123,7 +124,7 @@ class DataBowl3Detector(Dataset):
                         ifswap = self.augtype['swap'])
             else:
                 randimid = np.random.randint(len(self.kagglenames))
-		filename = self.kagglenames[randimid]
+                filename = self.kagglenames[randimid]
                 imgs = np.load(filename)[0:self.channel]
                 bboxes = self.sample_bboxes[randimid]
                 isScale = self.augtype['scale'] and (self.phase=='train')
@@ -131,8 +132,10 @@ class DataBowl3Detector(Dataset):
 
             label = self.label_mapping(sample.shape[1:], target, bboxes)
             sample = sample.astype(np.float32)
-	    #if filename in self.kagglenames:
-	#	label[label==-1]=0
+
+            # if filename in self.kagglenames:
+            #     label[label==-1]=0
+
             sample = (sample.astype(np.float32)-128)/128
             return torch.from_numpy(sample), torch.from_numpy(label), coord
         else:
@@ -158,9 +161,9 @@ class DataBowl3Detector(Dataset):
 
     def __len__(self):
         if self.phase == 'train':
-            return len(self.bboxes)/(1-self.r_rand)
-	elif self.phase =='val':
-	    return len(self.bboxes)
+            return len(self.bboxes) / (1-self.r_rand)
+        elif self.phase =='val':
+            return len(self.bboxes)
         else:
             return len(self.filenames)
 
@@ -216,7 +219,7 @@ class Crop(object):
         self.crop_size = config['crop_size']
         self.bound_size = config['bound_size']
         self.stride = config['stride']
-	self.pad_value = config['pad_value']
+        self.pad_value = config['pad_value']
 
     def __call__(self, imgs, target, bboxes,isScale=False,isRand=False):
         if isScale:
