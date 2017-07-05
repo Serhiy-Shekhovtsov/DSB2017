@@ -1,16 +1,18 @@
-import numpy as np
-import torch
-from torch.utils.data import Dataset
 import os
 import time
 import collections
 import random
-from layers import iou
-from scipy.ndimage import zoom
 import warnings
-from scipy.ndimage.interpolation import rotate
-from layers import nms,iou
+
+import torch
+import numpy as np
 import pandas
+
+from torch.utils.data import Dataset
+from scipy.ndimage import zoom
+from scipy.ndimage.interpolation import rotate
+
+from layers import nms, iou
 
 
 class DataBowl3Classifier(Dataset):

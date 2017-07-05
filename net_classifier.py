@@ -1,15 +1,16 @@
+import os
+
 import torch
-from torch import nn
-from layers import *
+import numpy as np
+
+from torch import nn, optim
 from torch.nn import DataParallel
 from torch.backends import cudnn
-from torch.utils.data import DataLoader
-from torch import optim
 from torch.autograd import Variable
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 from scipy.ndimage.interpolation import rotate
-import numpy as np
-import os
+
+from layers import *
 
 config = {}
 config['topk'] = 5
