@@ -73,14 +73,19 @@ def resample(imgs, spacing, new_spacing, order=2):
 
 
 def savenpy(filename, prep_folder, data_path, use_existing=True):
+    print('saving %s...' % filename)
     resolution = np.array([1, 1, 1])
 
     if use_existing:
         label_path = p.join(prep_folder, filename + '_label.npy')
         clean_path = p.join(prep_folder, filename + '_clean.npy')
+        exists = p.exists(label_path) and p.exists(clean_path)
+    else:
+        exists = False
 
-        if p.exists(label_path) and p.exists(clean_path):
-            print(filename +' already processed')
+    if exists:
+        print(filename +' already processed')
+        processed = 0
     else:
         im, m1, m2, spacing = step1_python(p.join(data_path, filename))
         Mask = m1 + m2
@@ -117,6 +122,9 @@ def savenpy(filename, prep_folder, data_path, use_existing=True):
         np.save(p.join(prep_folder, filename + '_clean'), sliceim)
         np.save(p.join(prep_folder, filename + '_label'), np.array([[0,0,0,0]]))
         print(filename + ' done')
+        processed = 1
+
+    return processed
 
 
 def full_prep(data_path, prep_folder, use_existing=True, **kwargs):
@@ -135,8 +143,8 @@ def full_prep(data_path, prep_folder, use_existing=True, **kwargs):
         savenpy, prep_folder=prep_folder, data_path=data_path,
         use_existing=use_existing)
 
-    _ = pool.map(partial_savenpy, filelist)
+    mapped = pool.map(partial_savenpy, filelist)
     pool.close()
     pool.join()
     print('end preprocessing')
-    return filelist
+    return mapped

@@ -38,13 +38,13 @@ if skip_prep:
     testsplit = filelist
 else:
     print('prepping...')
-    testsplit = full_prep(
+    processed = full_prep(
         datapath, prep_result_path,
         n_worker=config_submit['n_worker_preprocessing'],
         use_existing=config_submit['use_exsiting_preprocessing'],
         filelist=filelist)
 
-print(len(testsplit))
+print(sum(processed))
 
 nodmodel = import_module(config_submit['detector_model'].split('.py')[0])
 nodmodel_config, nod_net, loss, get_pbb = nodmodel.get_model()
@@ -61,7 +61,7 @@ bbox_result_path = './bbox_result'
 if not os.path.exists(bbox_result_path):
     os.mkdir(bbox_result_path)
 
-# testsplit = [
+# filelist = [
 #     f.split('_clean')[0] for f in os.listdir(prep_result_path) if '_clean' in f]
 
 if not skip_detect:
@@ -74,7 +74,7 @@ if not skip_detect:
         pad_value=nodmodel_config['pad_value'])
 
     dataset = DataBowl3Detector(
-        testsplit, nodmodel_config, phase='test', split_comber=split_comber)
+        filelist, nodmodel_config, phase='test', split_comber=split_comber)
 
     test_loader = DataLoader(
         dataset, batch_size=1, shuffle=False, num_workers=32,
@@ -118,9 +118,9 @@ def test_casenet(model,testset):
 casemodel_config['bboxpath'] = bbox_result_path
 casemodel_config['datadir'] = prep_result_path
 
-dataset = DataBowl3Classifier(testsplit, casemodel_config, phase='test')
+dataset = DataBowl3Classifier(filelist, casemodel_config, phase='test')
 predlist = test_casenet(casenet, dataset).T
-anstable = np.concatenate([[testsplit], predlist], 0).T
+anstable = np.concatenate([[filelist], predlist], 0).T
 df = pandas.DataFrame(anstable)
 df.columns = {'id', 'cancer'}
 df.to_csv(filename, index=False)
