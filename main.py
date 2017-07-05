@@ -31,14 +31,19 @@ else:
     s3 = None
 
 if skip_prep and s3:
+    print('skipping prep and loading from s3...')
     testsplit = [obj.key for obj in bucket.objects.all()]
 elif skip_prep:
+    print('skipping prep...')
     testsplit = os.listdir(datapath)
 else:
+    print('prepping...')
     testsplit = full_prep(
         datapath, prep_result_path,
         n_worker=config_submit['n_worker_preprocessing'],
         use_existing=config_submit['use_exsiting_preprocessing'])
+
+print(testsplit)
 
 nodmodel = import_module(config_submit['detector_model'].split('.py')[0])
 nodmodel_config, nod_net, loss, get_pbb = nodmodel.get_model()
