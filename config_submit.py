@@ -15,4 +15,4 @@ config = {
     'n_worker_preprocessing': None,
     'use_exsiting_preprocessing': True,
     'skip_preprocessing': False,
-    'skip_detect': True}
+    'skip_detect': False}
