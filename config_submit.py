@@ -4,7 +4,7 @@ n_gpu = torch.cuda.device_count() if torch.cuda.is_available() else 0
 print('Detected {} GPU(s).'.format(n_gpu) if n_gpu else 'No GPU detected!')
 
 config = {
-    'datapath': 's3://dd-stage2/',
+    'datapath': 's3://dd-sample/',
     'preprocess_result_path': './prep_result/',
     'outputfile': 'prediction.csv',
     'detector_model': 'net_detector',
