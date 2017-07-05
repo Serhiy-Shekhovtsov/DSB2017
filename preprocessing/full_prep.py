@@ -36,9 +36,6 @@ def process_mask(mask):
     dilatedMask = binary_dilation(convex_mask,structure=struct,iterations=10)
     return dilatedMask
 
-# def savenpy(id):
-id = 1
-
 
 def lumTrans(img):
     lungwin = np.array([-1200.,600.])
@@ -75,18 +72,17 @@ def resample(imgs, spacing, new_spacing, order=2):
         raise ValueError('wrong shape')
 
 
-def savenpy(id, filelist, prep_folder, data_path, use_existing=True):
+def savenpy(filename, prep_folder, data_path, use_existing=True):
     resolution = np.array([1, 1, 1])
-    name = filelist[id]
 
     if use_existing:
-        label_path = p.join(prep_folder, name + '_label.npy')
-        clean_path = p.join(prep_folder, name + '_clean.npy')
+        label_path = p.join(prep_folder, filename + '_label.npy')
+        clean_path = p.join(prep_folder, filename + '_clean.npy')
 
         if p.exists(label_path) and p.exists(clean_path):
-            print(name +' already processed')
+            print(filename +' already processed')
     else:
-        im, m1, m2, spacing = step1_python(p.join(data_path, name))
+        im, m1, m2, spacing = step1_python(p.join(data_path, filename))
         Mask = m1 + m2
 
         newshape = np.round(np.array(Mask.shape) * spacing / resolution)
@@ -118,9 +114,9 @@ def savenpy(id, filelist, prep_folder, data_path, use_existing=True):
                     extendbox[2,0]:extendbox[2,1]]
 
         sliceim = sliceim2[np.newaxis,...]
-        np.save(p.join(prep_folder, name + '_clean'), sliceim)
-        np.save(p.join(prep_folder, name + '_label'), np.array([[0,0,0,0]]))
-        print(name + ' done')
+        np.save(p.join(prep_folder, filename + '_clean'), sliceim)
+        np.save(p.join(prep_folder, filename + '_label'), np.array([[0,0,0,0]]))
+        print(filename + ' done')
 
 
 def full_prep(data_path, prep_folder, use_existing=True, **kwargs):
@@ -136,11 +132,10 @@ def full_prep(data_path, prep_folder, use_existing=True, **kwargs):
     filelist = kwargs.get('filelist') or os.listdir(data_path)
 
     partial_savenpy = partial(
-        savenpy, filelist=filelist, prep_folder=prep_folder,
-        data_path=data_path, use_existing=use_existing)
+        savenpy, prep_folder=prep_folder, data_path=data_path,
+        use_existing=use_existing)
 
-    N = len(filelist)
-    _ = pool.map(partial_savenpy, range(N))
+    _ = pool.map(partial_savenpy, filelist)
     pool.close()
     pool.join()
     print('end preprocessing')
