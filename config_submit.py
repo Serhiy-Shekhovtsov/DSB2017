@@ -13,6 +13,6 @@ config = {
     'classifier_param': './model/classifier.ckpt',
     'n_gpu': n_gpu,
     'n_worker_preprocessing': None,
-    'use_exsiting_preprocessing': False,
-    'skip_preprocessing': False,
-    'skip_detect': False}
+    'use_exsiting_preprocessing': True,
+    'skip_preprocessing': True,
+    'skip_detect': True}
