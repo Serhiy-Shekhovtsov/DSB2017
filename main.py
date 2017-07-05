@@ -24,13 +24,13 @@ skip_prep = config_submit['skip_preprocessing']
 skip_detect = config_submit['skip_detect']
 
 if datapath.startswith('s3://'):
-    print('loading from s3...')
+    print('loading %s from s3...' % datapath)
     import boto3
     s3 = boto3.resource('s3')
     bucket = s3.Bucket(datapath.split('/')[2])
     filelist = [obj.key for obj in bucket.objects.all()]
 else:
-    print('loading from file-system...')
+    print('loading %s from file-system...' % datapath)
     filelist = os.listdir(datapath)
 
 if skip_prep:

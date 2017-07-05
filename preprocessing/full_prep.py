@@ -124,6 +124,7 @@ def savenpy(id, filelist, prep_folder, data_path, use_existing=True):
 
 
 def full_prep(data_path, prep_folder, use_existing=True, **kwargs):
+    print(len(kwargs.get('filelist', [])))
     n_worker = kwargs.get('n_worker')
     warnings.filterwarnings('ignore')
 
