@@ -14,17 +14,18 @@ from scipy.ndimage.morphology import binary_dilation,generate_binary_structure
 class DataBowl3Detector(Dataset):
     def __init__(self, split, config, phase = 'train',split_comber=None):
         assert(phase == 'train' or phase == 'val' or phase == 'test')
-        self.phase = phase
-        self.max_stride = config['max_stride']       
-        self.stride = config['stride']       
         sizelim = config['sizelim']/config['reso']
         sizelim2 = config['sizelim2']/config['reso']
         sizelim3 = config['sizelim3']/config['reso']
+        data_dir = config['datadir']
+
+        self.phase = phase
+        self.max_stride = config['max_stride']
+        self.stride = config['stride']
         self.blacklist = config['blacklist']
         self.isScale = config['aug_scale']
         self.r_rand = config['r_rand_crop']
         self.augtype = config['augtype']
-        data_dir = config['datadir']
 	self.pad_value = config['pad_value']
         
         self.split_comber = split_comber

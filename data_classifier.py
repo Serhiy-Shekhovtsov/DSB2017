@@ -17,7 +17,7 @@ from layers import nms, iou
 
 class DataBowl3Classifier(Dataset):
     def __init__(self, split, config, phase='train'):
-        assert(phase == 'train' or phase == 'val' or phase == 'test')
+        assert(phase in {'train', 'val', 'test'})
 
         self.random_sample = config['random_sample']
         self.T = config['T']
@@ -232,13 +232,12 @@ def augment(sample, coord, ifflip = True, ifrotate=True, ifswap = True,filling_v
         size = np.array(sample.shape[2:4]).astype('float')
         rotmat = np.array([[np.cos(angle1/180*np.pi),-np.sin(angle1/180*np.pi)],[np.sin(angle1/180*np.pi),np.cos(angle1/180*np.pi)]])
         sample = rotate(sample,angle1,axes=(2,3),reshape=False,cval=filling_value)
-        
-    if ifswap:
-        if sample.shape[1]==sample.shape[2] and sample.shape[1]==sample.shape[3]:
-            axisorder = np.random.permutation(3)
-            sample = np.transpose(sample,np.concatenate([[0],axisorder+1]))
-            coord = np.transpose(coord,np.concatenate([[0],axisorder+1]))
-            
+
+    if ifswap and sample.shape[1] == sample.shape[2] == sample.shape[3]:
+        axisorder = np.random.permutation(3)
+        sample = np.transpose(sample,np.concatenate([[0],axisorder+1]))
+        coord = np.transpose(coord,np.concatenate([[0],axisorder+1]))
+
     if ifflip:
         flipid = np.array([np.random.randint(2),np.random.randint(2),np.random.randint(2)])*2-1
         sample = np.ascontiguousarray(sample[:,::flipid[0],::flipid[1],::flipid[2]])

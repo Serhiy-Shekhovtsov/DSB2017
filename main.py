@@ -32,7 +32,7 @@ else:
         use_existing=config_submit['use_exsiting_preprocessing'])
 
 nodmodel = import_module(config_submit['detector_model'].split('.py')[0])
-config1, nod_net, loss, get_pbb = nodmodel.get_model()
+nodmodel_config, nod_net, loss, get_pbb = nodmodel.get_model()
 checkpoint = torch.load(config_submit['detector_param'])
 nod_net.load_state_dict(checkpoint['state_dict'])
 
@@ -52,26 +52,26 @@ if not os.path.exists(bbox_result_path):
 if not skip_detect:
     margin = 32
     sidelen = 144
-    config1['datadir'] = prep_result_path
+    nodmodel_config['datadir'] = prep_result_path
 
     split_comber = SplitComb(
-        sidelen, config1['max_stride'], config1['stride'], margin,
-        pad_value=config1['pad_value'])
+        sidelen, nodmodel_config['max_stride'], nodmodel_config['stride'], margin,
+        pad_value=nodmodel_config['pad_value'])
 
     dataset = DataBowl3Detector(
-        testsplit, config1, phase='test', split_comber=split_comber)
+        testsplit, nodmodel_config, phase='test', split_comber=split_comber)
 
     test_loader = DataLoader(
-        dataset, batch_size=1, shuffle = False, num_workers=32,
+        dataset, batch_size=1, shuffle=False, num_workers=32,
         pin_memory=False, collate_fn=collate)
 
     test_detect(
-        test_loader, nod_net, get_pbb, bbox_result_path, config1,
+        test_loader, nod_net, get_pbb, bbox_result_path, nodmodel_config,
         n_gpu=config_submit['n_gpu'])
 
 casemodel = import_module(config_submit['classifier_model'].split('.py')[0])
 casenet = casemodel.CaseNet(topk=5)
-config2 = casemodel.config
+casemodel_config = casemodel.config
 checkpoint = torch.load(config_submit['classifier_param'])
 casenet.load_state_dict(checkpoint['state_dict'])
 
@@ -100,12 +100,12 @@ def test_casenet(model,testset):
 
     return np.concatenate(predlist)
 
-config2['bboxpath'] = bbox_result_path
-config2['datadir'] = prep_result_path
+casemodel_config['bboxpath'] = bbox_result_path
+casemodel_config['datadir'] = prep_result_path
 
-dataset = DataBowl3Classifier(testsplit, config2, phase='test')
-predlist = test_casenet(casenet,dataset).T
-anstable = np.concatenate([[testsplit],predlist],0).T
+dataset = DataBowl3Classifier(testsplit, casemodel_config, phase='test')
+predlist = test_casenet(casenet, dataset).T
+anstable = np.concatenate([[testsplit], predlist], 0).T
 df = pandas.DataFrame(anstable)
 df.columns = {'id', 'cancer'}
 df.to_csv(filename, index=False)
