@@ -1,16 +1,20 @@
 import os
-import numpy as np
-from scipy.io import loadmat
-import h5py
-from scipy.ndimage.interpolation import zoom
-from skimage import measure
 import warnings
-from scipy.ndimage.morphology import binary_dilation,generate_binary_structure
-from skimage.morphology import convex_hull_image
-from multiprocessing import Pool
+
+from os import path as p
 from functools import partial
+from multiprocessing import Pool
+
+import h5py
+import numpy as np
+
+from skimage import measure
+from skimage.morphology import convex_hull_image
+from scipy.io import loadmat
+from scipy.ndimage.interpolation import zoom
+from scipy.ndimage.morphology import binary_dilation, generate_binary_structure
+
 from step1 import step1_python
-import warnings
 
 def process_mask(mask):
     convex_mask = np.copy(mask)
