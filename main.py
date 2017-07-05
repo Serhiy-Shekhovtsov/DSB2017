@@ -46,7 +46,8 @@ bbox_result_path = './bbox_result'
 if not os.path.exists(bbox_result_path):
     os.mkdir(bbox_result_path)
 
-#testsplit = [f.split('_clean')[0] for f in os.listdir(prep_result_path) if '_clean' in f]
+# testsplit = [
+#     f.split('_clean')[0] for f in os.listdir(prep_result_path) if '_clean' in f]
 
 if not skip_detect:
     margin = 32

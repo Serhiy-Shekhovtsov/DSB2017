@@ -12,10 +12,11 @@ from scipy.ndimage.interpolation import rotate
 from layers import nms,iou
 import pandas
 
+
 class DataBowl3Classifier(Dataset):
-    def __init__(self, split, config, phase = 'train'):
+    def __init__(self, split, config, phase='train'):
         assert(phase == 'train' or phase == 'val' or phase == 'test')
-        
+
         self.random_sample = config['random_sample']
         self.T = config['T']
         self.topk = config['topk']
@@ -23,44 +24,53 @@ class DataBowl3Classifier(Dataset):
         self.stride = config['stride']
         self.augtype  = config['augtype']
         self.filling_value = config['filling_value']
-        
-        #self.labels = np.array(pandas.read_csv(config['labelfile']))
-        
+
+        # self.labels = np.array(pandas.read_csv(config['labelfile']))
+
         datadir = config['datadir']
-        bboxpath  = config['bboxpath']
+        bboxpath = config['bboxpath']
         self.phase = phase
         self.candidate_box = []
         self.pbb_label = []
-        
+
         idcs = split
-        self.filenames = [os.path.join(datadir, '%s_clean.npy' % idx.split('-')[0]) for idx in idcs]
-        if self.phase!='test':
-            self.yset = 1-np.array([f.split('-')[1][2] for f in idcs]).astype('int')
- 
-        
+
+        self.filenames = [
+            os.path.join(datadir, '%s_clean.npy' % idx.split('-')[0])
+            for idx in idcs]
+
+        if self.phase != 'test':
+            self.yset = 1 - np.array(
+                [f.split('-')[1][2] for f in idcs]).astype('int')
+
         for idx in idcs:
-            pbb = np.load(os.path.join(bboxpath,idx+'_pbb.npy'))
-            pbb = pbb[pbb[:,0]>config['conf_th']]
+            pbb = np.load(os.path.join(bboxpath, idx + '_pbb.npy'))
+            pbb = pbb[pbb[:,0] > config['conf_th']]
             pbb = nms(pbb, config['nms_th'])
-            
-            lbb = np.load(os.path.join(bboxpath,idx+'_lbb.npy'))
+
+            lbb = np.load(os.path.join(bboxpath, idx + '_lbb.npy'))
             pbb_label = []
-            
+
             for p in pbb:
                 isnod = False
+
                 for l in lbb:
                     score = iou(p[1:5], l)
+
                     if score > config['detect_th']:
                         isnod = True
                         break
+
                 pbb_label.append(isnod)
-#             if idx.startswith()
+
+            # if idx.startswith()
             self.candidate_box.append(pbb)
             self.pbb_label.append(np.array(pbb_label))
-        self.crop = simpleCrop(config,phase)
-        
 
-    def __getitem__(self, idx,split=None):
+        self.crop = simpleCrop(config,phase)
+
+
+    def __getitem__(self, idx, split=None):
         t = time.time()
         np.random.seed(int(str(t%1)[2:7]))#seed according to time
 
@@ -70,43 +80,48 @@ class DataBowl3Classifier(Dataset):
         T = self.T
         topk = self.topk
         img = np.load(self.filenames[idx])
+
         if self.random_sample and self.phase=='train':
             chosenid = sample(conf_list,topk,T=T)
             #chosenid = conf_list.argsort()[::-1][:topk]
         else:
             chosenid = conf_list.argsort()[::-1][:topk]
+
         croplist = np.zeros([topk,1,self.crop_size[0],self.crop_size[1],self.crop_size[2]]).astype('float32')
         coordlist = np.zeros([topk,3,self.crop_size[0]/self.stride,self.crop_size[1]/self.stride,self.crop_size[2]/self.stride]).astype('float32')
         padmask = np.concatenate([np.ones(len(chosenid)),np.zeros(self.topk-len(chosenid))])
         isnodlist = np.zeros([topk])
 
-        
         for i,id in enumerate(chosenid):
             target = pbb[id,1:]
             isnod = pbb_label[id]
-            crop,coord = self.crop(img,target)
+            crop, coord = self.crop(img, target)
+
             if self.phase=='train':
-                crop,coord = augment(crop,coord,
-                                 ifflip=self.augtype['flip'],ifrotate=self.augtype['rotate'],
-                                ifswap = self.augtype['swap'],filling_value = self.filling_value)
+                crop, coord = augment(
+                    crop, coord, ifflip=self.augtype['flip'],
+                    ifrotate=self.augtype['rotate'],
+                    ifswap=self.augtype['swap'],
+                    filling_value=self.filling_value)
+
             crop = crop.astype(np.float32)
             croplist[i] = crop
             coordlist[i] = coord
             isnodlist[i] = isnod
-            
+
         if self.phase!='test':
             y = np.array([self.yset[idx]])
             return torch.from_numpy(croplist).float(), torch.from_numpy(coordlist).float(), torch.from_numpy(isnodlist).int(), torch.from_numpy(y)
         else:
             return torch.from_numpy(croplist).float(), torch.from_numpy(coordlist).float()
+
     def __len__(self):
         if self.phase != 'test':
             return len(self.candidate_box)
         else:
             return len(self.candidate_box)
-        
 
-        
+
 class simpleCrop():
     def __init__(self,config,phase):
         self.crop_size = config['crop_size']
@@ -117,7 +132,7 @@ class simpleCrop():
         self.stride = config['stride']
         self.filling_value = config['filling_value']
         self.phase = phase
-        
+
     def __call__(self,imgs,target):
         if self.isScale:
             radiusLim = self.radiusLim
@@ -128,13 +143,16 @@ class simpleCrop():
             crop_size = (np.array(self.crop_size).astype('float')/scale).astype('int')
         else:
             crop_size = np.array(self.crop_size).astype('int')
-        if self.phase=='train':
+
+        if self.phase == 'train':
             jitter_range = target[3]*self.jitter_range
             jitter = (np.random.rand(3)-0.5)*jitter_range
         else:
             jitter = 0
+
         start = (target[:3]- crop_size/2 + jitter).astype('int')
         pad = [[0,0]]
+
         for i in range(3):
             if start[i]<0:
                 leftpad = -start[i]
@@ -145,10 +163,12 @@ class simpleCrop():
                 rightpad = start[i]+crop_size[i]-imgs.shape[i+1]
             else:
                 rightpad = 0
+
             pad.append([leftpad,rightpad])
+
         imgs = np.pad(imgs,pad,'constant',constant_values =self.filling_value)
         crop = imgs[:,start[0]:start[0]+crop_size[0],start[1]:start[1]+crop_size[1],start[2]:start[2]+crop_size[2]]
-        
+
         normstart = np.array(start).astype('float32')/np.array(imgs.shape[1:])-0.5
         normsize = np.array(crop_size).astype('float32')/np.array(imgs.shape[1:])
         xx,yy,zz = np.meshgrid(np.linspace(normstart[0],normstart[0]+normsize[0],self.crop_size[0]/self.stride),
@@ -160,7 +180,9 @@ class simpleCrop():
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 crop = zoom(crop,[1,scale,scale,scale],order=1)
+
             newpad = self.crop_size[0]-crop.shape[1:][0]
+
             if newpad<0:
                 crop = crop[:,:-newpad,:-newpad,:-newpad]
             elif newpad>0:
@@ -169,20 +191,22 @@ class simpleCrop():
 
         return crop,coord
 
+
 def sample(conf,N,T=1):
     if len(conf)>N:
         target = range(len(conf))
         chosen_list = []
+
         for i in range(N):
             chosenidx = sampleone(target,conf,T)
             chosen_list.append(target[chosenidx])
             target.pop(chosenidx)
             conf = np.delete(conf, chosenidx)
 
-            
         return chosen_list
     else:
         return np.arange(len(conf))
+
 
 def sampleone(target,conf,T):
     assert len(conf)>1
@@ -190,6 +214,7 @@ def sampleone(target,conf,T):
     p = np.max([np.ones_like(p)*0.00001,p],axis=0)
     p = p/np.sum(p)
     return np.random.choice(np.arange(len(target)),size=1,replace = False, p=p)[0]
+
 
 def softmax(x):
     maxx = np.max(x)
@@ -216,4 +241,5 @@ def augment(sample, coord, ifflip = True, ifrotate=True, ifswap = True,filling_v
         flipid = np.array([np.random.randint(2),np.random.randint(2),np.random.randint(2)])*2-1
         sample = np.ascontiguousarray(sample[:,::flipid[0],::flipid[1],::flipid[2]])
         coord = np.ascontiguousarray(coord[:,::flipid[0],::flipid[1],::flipid[2]])
-    return sample, coord 
+
+    return sample, coord
