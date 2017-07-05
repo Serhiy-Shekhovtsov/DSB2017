@@ -9,50 +9,53 @@ import matplotlib.pyplot as plt
 from skimage import measure, morphology
 
 
-
 def load_scan(path):
     slices = [dicom.read_file(path + '/' + s) for s in os.listdir(path)]
-    slices.sort(key = lambda x: float(x.ImagePositionPatient[2]))
-    if slices[0].ImagePositionPatient[2] == slices[1].ImagePositionPatient[2]:
-        sec_num = 2;
-        while slices[0].ImagePositionPatient[2] == slices[sec_num].ImagePositionPatient[2]:
-            sec_num = sec_num+1;
+    slices.sort(key=lambda x: float(x.ImagePositionPatient[2]))
+    slice_0_ipp = slices[0].ImagePositionPatient[2]
+
+    if slice_0_ipp == slices[1].ImagePositionPatient[2]:
+        sec_num = 2
+
+        while slice_0_ipp == slices[sec_num].ImagePositionPatient[2]:
+            sec_num = sec_num + 1
+
         slice_num = int(len(slices) / sec_num)
-        slices.sort(key = lambda x:float(x.InstanceNumber))
+        slices.sort(key=lambda x: float(x.InstanceNumber))
         slices = slices[0:slice_num]
-        slices.sort(key = lambda x:float(x.ImagePositionPatient[2]))
+        slices.sort(key=lambda x: float(x.ImagePositionPatient[2]))
     try:
         slice_thickness = np.abs(slices[0].ImagePositionPatient[2] - slices[1].ImagePositionPatient[2])
     except:
         slice_thickness = np.abs(slices[0].SliceLocation - slices[1].SliceLocation)
-        
+
     for s in slices:
         s.SliceThickness = slice_thickness
-        
+
     return slices
 
 def get_pixels_hu(slices):
     image = np.stack([s.pixel_array for s in slices])
-    # Convert to int16 (from sometimes int16), 
+    # Convert to int16 (from sometimes int16),
     # should be possible as values should always be low enough (<32k)
     image = image.astype(np.int16)
-    
+
     # Convert to Hounsfield units (HU)
-    for slice_number in range(len(slices)):        
+    for slice_number in range(len(slices)):
         intercept = slices[slice_number].RescaleIntercept
         slope = slices[slice_number].RescaleSlope
-        
+
         if slope != 1:
             image[slice_number] = slope * image[slice_number].astype(np.float64)
             image[slice_number] = image[slice_number].astype(np.int16)
-            
+
         image[slice_number] += np.int16(intercept)
-    
+
     return np.array(image, dtype=np.int16), np.array([slices[0].SliceThickness] + slices[0].PixelSpacing, dtype=np.float32)
 
 def binarize_per_slice(image, spacing, intensity_th=-600, sigma=1, area_th=30, eccen_th=0.99, bg_patch_size=10):
     bw = np.zeros(image.shape, dtype=bool)
-    
+
     # prepare a mask, with all corner values set to nan
     image_size = image.shape[1]
     grid_axis = np.linspace(-image_size/2+0.5, image_size/2-0.5, image_size)
@@ -66,7 +69,7 @@ def binarize_per_slice(image, spacing, intensity_th=-600, sigma=1, area_th=30, e
             current_bw = scipy.ndimage.filters.gaussian_filter(np.multiply(image[i].astype('float32'), nan_mask), sigma, truncate=2.0) < intensity_th
         else:
             current_bw = scipy.ndimage.filters.gaussian_filter(image[i].astype('float32'), sigma, truncate=2.0) < intensity_th
-        
+
         # select proper components
         label = measure.label(current_bw)
         properties = measure.regionprops(label)
@@ -76,7 +79,7 @@ def binarize_per_slice(image, spacing, intensity_th=-600, sigma=1, area_th=30, e
                 valid_label.add(prop.label)
         current_bw = np.in1d(label, list(valid_label)).reshape(label.shape)
         bw[i] = current_bw
-        
+
     return bw
 
 def all_slice_analysis(bw, spacing, cut_num=0, vol_limit=[0.68, 8.2], area_th=6e3, dist_th=62):
@@ -92,13 +95,13 @@ def all_slice_analysis(bw, spacing, cut_num=0, vol_limit=[0.68, 8.2], area_th=6e
                     label[0, 0, mid], label[0, -1, mid], label[-1-cut_num, 0, mid], label[-1-cut_num, -1, mid]])
     for l in bg_label:
         label[label == l] = 0
-        
+
     # select components based on volume
     properties = measure.regionprops(label)
     for prop in properties:
         if prop.area * spacing.prod() < vol_limit[0] * 1e6 or prop.area * spacing.prod() > vol_limit[1] * 1e6:
             label[label == prop.label] = 0
-            
+
     # prepare a distance map for further analysis
     x_axis = np.linspace(-label.shape[1]/2+0.5, label.shape[1]/2-0.5, label.shape[1]) * spacing[1]
     y_axis = np.linspace(-label.shape[2]/2+0.5, label.shape[2]/2-0.5, label.shape[2]) * spacing[2]
@@ -114,12 +117,12 @@ def all_slice_analysis(bw, spacing, cut_num=0, vol_limit=[0.68, 8.2], area_th=6e
         for i in range(label.shape[0]):
             slice_area[i] = np.sum(single_vol[i]) * np.prod(spacing[1:3])
             min_distance[i] = np.min(single_vol[i] * d + (1 - single_vol[i]) * np.max(d))
-        
+
         if np.average([min_distance[i] for i in range(label.shape[0]) if slice_area[i] > area_th]) < dist_th:
             valid_label.add(vol.label)
-            
+
     bw = np.in1d(label, list(valid_label)).reshape(label.shape)
-    
+
     # fill back the parts removed earlier
     if cut_num > 0:
         # bw1 is bw with removed slices, bw2 is a dilated version of bw, part of their intersection is returned as final mask
@@ -138,7 +141,7 @@ def all_slice_analysis(bw, spacing, cut_num=0, vol_limit=[0.68, 8.2], area_th=6e
             if l3 > 0:
                 valid_l3.add(l3)
         bw = np.in1d(label3, list(valid_l3)).reshape(label3.shape)
-    
+
     return bw, len(valid_label)
 
 def fill_hole(bw):
@@ -148,13 +151,13 @@ def fill_hole(bw):
     bg_label = set([label[0, 0, 0], label[0, 0, -1], label[0, -1, 0], label[0, -1, -1], \
                     label[-1, 0, 0], label[-1, 0, -1], label[-1, -1, 0], label[-1, -1, -1]])
     bw = ~np.in1d(label, list(bg_label)).reshape(label.shape)
-    
+
     return bw
 
 
 
 
-def two_lung_only(bw, spacing, max_iter=22, max_ratio=4.8):    
+def two_lung_only(bw, spacing, max_iter=22, max_ratio=4.8):
     def extract_main(bw, cover=0.95):
         for i in range(bw.shape[0]):
             current_slice = bw[i]
@@ -172,14 +175,14 @@ def two_lung_only(bw, spacing, max_iter=22, max_ratio=4.8):
                 bb = properties[j].bbox
                 filter[bb[0]:bb[2], bb[1]:bb[3]] = filter[bb[0]:bb[2], bb[1]:bb[3]] | properties[j].convex_image
             bw[i] = bw[i] & filter
-           
+
         label = measure.label(bw)
         properties = measure.regionprops(label)
         properties.sort(key=lambda x: x.area, reverse=True)
         bw = label==properties[0].label
 
         return bw
-    
+
     def fill_2d_hole(bw):
         for i in range(bw.shape[0]):
             current_slice = bw[i]
@@ -191,7 +194,7 @@ def two_lung_only(bw, spacing, max_iter=22, max_ratio=4.8):
             bw[i] = current_slice
 
         return bw
-    
+
     found_flag = False
     iter_count = 0
     bw0 = np.copy(bw)
@@ -206,20 +209,20 @@ def two_lung_only(bw, spacing, max_iter=22, max_ratio=4.8):
         else:
             bw = scipy.ndimage.binary_erosion(bw)
             iter_count = iter_count + 1
-    
+
     if found_flag:
         d1 = scipy.ndimage.morphology.distance_transform_edt(bw1 == False, sampling=spacing)
         d2 = scipy.ndimage.morphology.distance_transform_edt(bw2 == False, sampling=spacing)
         bw1 = bw0 & (d1 < d2)
         bw2 = bw0 & (d1 > d2)
-                
+
         bw1 = extract_main(bw1)
         bw2 = extract_main(bw2)
-        
+
     else:
         bw1 = bw0
         bw2 = np.zeros(bw.shape).astype('bool')
-        
+
     bw1 = fill_2d_hole(bw1)
     bw2 = fill_2d_hole(bw2)
     bw = bw1 | bw2
@@ -242,7 +245,7 @@ def step1_python(case_path):
     bw = fill_hole(bw)
     bw1, bw2, bw = two_lung_only(bw, spacing)
     return case_pixels, bw1, bw2, spacing
-    
+
 if __name__ == '__main__':
     INPUT_FOLDER = '/work/DataBowl3/stage1/stage1/'
     patients = os.listdir(INPUT_FOLDER)
@@ -257,16 +260,16 @@ if __name__ == '__main__':
 #     plt.xlabel("Hounsfield Units (HU)")
 #     plt.ylabel("Frequency")
 #     plt.show()
-    
+
 #     # Show some slice in the middle
 #     h = 80
 #     plt.imshow(first_patient_pixels[h], cmap=plt.cm.gray)
 #     plt.show()
-    
+
 #     bw = binarize_per_slice(first_patient_pixels, spacing)
 #     plt.imshow(bw[h], cmap=plt.cm.gray)
 #     plt.show()
-    
+
 #     flag = 0
 #     cut_num = 0
 #     while flag == 0:
@@ -274,11 +277,11 @@ if __name__ == '__main__':
 #         cut_num = cut_num + 1
 #     plt.imshow(bw[h], cmap=plt.cm.gray)
 #     plt.show()
-    
+
 #     bw = fill_hole(bw)
 #     plt.imshow(bw[h], cmap=plt.cm.gray)
 #     plt.show()
-    
+
 #     bw1, bw2, bw = two_lung_only(bw, spacing)
 #     plt.imshow(bw[h], cmap=plt.cm.gray)
 #     plt.show()

@@ -31,7 +31,7 @@ class DataBowl3Detector(Dataset):
 
         idcs = split
 
-        if phase!='test':
+        if phase != 'test':
             idcs = [f for f in idcs if f not in self.blacklist]
 
         self.channel = config['chanel']
