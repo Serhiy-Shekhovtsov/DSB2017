@@ -23,7 +23,16 @@ prep_result_path = config_submit['preprocess_result_path']
 skip_prep = config_submit['skip_preprocessing']
 skip_detect = config_submit['skip_detect']
 
-if skip_prep:
+if datapath.startswith('s3://'):
+    import boto3
+    s3 = boto3.resource('s3')
+    bucket = s3.Bucket(datapath.split('/')[2])
+else:
+    s3 = None
+
+if skip_prep and s3:
+    testsplit = [obj.key for obj in bucket.objects.all()]
+elif skip_prep:
     testsplit = os.listdir(datapath)
 else:
     testsplit = full_prep(
