@@ -8,7 +8,7 @@ from config_training import config as config_training
 
 config = {}
 config['anchors'] = [ 10.0, 30.0, 60.]
-config['chanel'] = 1
+config['channel'] = 1
 config['crop_size'] = [128, 128, 128]
 config['stride'] = 4
 config['datadir'] = config_training['preprocess_result_path']
@@ -49,7 +49,7 @@ class Net(nn.Module):
             nn.Conv3d(24, 24, kernel_size = 3, padding = 1),
             nn.BatchNorm3d(24),
             nn.ReLU(inplace = True))
-        
+
         # 3 poolings, each pooling downsamples the feature map by a factor 2.
         # 3 groups of blocks. The first block of each group has one pooling.
         num_blocks_forw = [2,2,3,3]
@@ -65,7 +65,7 @@ class Net(nn.Module):
                     blocks.append(PostRes(self.featureNum_forw[i+1], self.featureNum_forw[i+1]))
             setattr(self, 'forw' + str(i + 1), nn.Sequential(*blocks))
 
-            
+
         for i in range(len(num_blocks_back)):
             blocks = []
             for j in range(num_blocks_back[i]):
@@ -113,12 +113,12 @@ class Net(nn.Module):
         out3_pool,indices3 = self.maxpool4(out3)
         out4 = self.forw4(out3_pool)#96
         #out4 = self.drop(out4)
-        
+
         rev3 = self.path1(out4)
         comb3 = self.back3(torch.cat((rev3, out3), 1))#96+96
         #comb3 = self.drop(comb3)
         rev2 = self.path2(comb3)
-        
+
         feat = self.back2(torch.cat((rev2, out2,coord), 1))#64+64
         comb2 = self.drop(feat)
         out = self.output(comb2)
@@ -128,7 +128,7 @@ class Net(nn.Module):
         out = out.transpose(1, 2).contiguous().view(size[0], size[2], size[3], size[4], len(config['anchors']), 5)
         #out = out.view(-1, 5)
         return feat,out
-    
+
 def get_model():
     net = Net()
     loss = Loss(config['num_hard'])

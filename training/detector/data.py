@@ -11,11 +11,11 @@ import warnings
 from scipy.ndimage.interpolation import rotate
 
 class DataBowl3Detector(Dataset):
-    def __init__(self, data_dir, split_path, config, phase = 'train',split_comber=None):
+    def __init__(self, datadir, split_path, config, phase = 'train',split_comber=None):
         assert(phase == 'train' or phase == 'val' or phase == 'test')
         self.phase = phase
-        self.max_stride = config['max_stride']       
-        self.stride = config['stride']       
+        self.max_stride = config['max_stride']
+        self.stride = config['stride']
         sizelim = config['sizelim']/config['reso']
         sizelim2 = config['sizelim2']/config['reso']
         sizelim3 = config['sizelim3']/config['reso']
@@ -29,14 +29,14 @@ class DataBowl3Detector(Dataset):
         if phase!='test':
             idcs = [f for f in idcs if (f not in self.blacklist)]
 
-        self.filenames = [os.path.join(data_dir, '%s_clean.npy' % idx) for idx in idcs]
+        self.filenames = [os.path.join(datadir, '%s_clean.npy' % idx) for idx in idcs]
         self.kagglenames = [f for f in self.filenames if len(f.split('/')[-1].split('_')[0])>20]
         self.lunanames = [f for f in self.filenames if len(f.split('/')[-1].split('_')[0])<20]
-        
+
         labels = []
-        
+
         for idx in idcs:
-            l = np.load(os.path.join(data_dir, '%s_label.npy' %idx))
+            l = np.load(os.path.join(datadir, '%s_label.npy' %idx))
             if np.all(l==0):
                 l=np.array([])
             labels.append(l)
@@ -72,7 +72,7 @@ class DataBowl3Detector(Dataset):
                 isRandom = False
         else:
             isRandom = False
-        
+
         if self.phase != 'test':
             if not isRandomImg:
                 bbox = self.bboxes[idx]
@@ -104,7 +104,7 @@ class DataBowl3Detector(Dataset):
             ph = int(np.ceil(float(nh) / self.stride)) * self.stride
             pw = int(np.ceil(float(nw) / self.stride)) * self.stride
             imgs = np.pad(imgs, [[0,0],[0, pz - nz], [0, ph - nh], [0, pw - nw]], 'constant',constant_values = self.pad_value)
-            
+
             xx,yy,zz = np.meshgrid(np.linspace(-0.5,0.5,imgs.shape[1]/self.stride),
                                    np.linspace(-0.5,0.5,imgs.shape[2]/self.stride),
                                    np.linspace(-0.5,0.5,imgs.shape[3]/self.stride),indexing ='ij')
@@ -125,8 +125,8 @@ class DataBowl3Detector(Dataset):
             return len(self.bboxes)
         else:
             return len(self.sample_bboxes)
-        
-        
+
+
 def augment(sample, target, bboxes, coord, ifflip = True, ifrotate=True, ifswap = True):
     #                     angle1 = np.random.rand()*180
     if ifrotate:
@@ -156,7 +156,7 @@ def augment(sample, target, bboxes, coord, ifflip = True, ifrotate=True, ifswap 
             coord = np.transpose(coord,np.concatenate([[0],axisorder+1]))
             target[:3] = target[:3][axisorder]
             bboxes[:,:3] = bboxes[:,:3][:,axisorder]
-            
+
     if ifflip:
 #         flipid = np.array([np.random.randint(2),np.random.randint(2),np.random.randint(2)])*2-1
         flipid = np.array([1,np.random.randint(2),np.random.randint(2)])*2-1
@@ -166,7 +166,7 @@ def augment(sample, target, bboxes, coord, ifflip = True, ifrotate=True, ifswap 
             if flipid[ax]==-1:
                 target[ax] = np.array(sample.shape[ax+1])-target[ax]
                 bboxes[:,ax]= np.array(sample.shape[ax+1])-bboxes[:,ax]
-    return sample, target, bboxes, coord 
+    return sample, target, bboxes, coord
 
 class Crop(object):
     def __init__(self, config):
@@ -187,13 +187,13 @@ class Crop(object):
         bound_size = self.bound_size
         target = np.copy(target)
         bboxes = np.copy(bboxes)
-        
+
         start = []
         for i in range(3):
             if not isRand:
                 r = target[3] / 2
                 s = np.floor(target[i] - r)+ 1 - bound_size
-                e = np.ceil (target[i] + r)+ 1 + bound_size - crop_size[i] 
+                e = np.ceil (target[i] + r)+ 1 + bound_size - crop_size[i]
             else:
                 s = np.max([imgs.shape[i+1]-crop_size[i]/2,imgs.shape[i+1]/2+bound_size])
                 e = np.min([crop_size[i]/2,              imgs.shape[i+1]/2-bound_size])
@@ -202,8 +202,8 @@ class Crop(object):
                 start.append(np.random.randint(e,s))#!
             else:
                 start.append(int(target[i])-crop_size[i]/2+np.random.randint(-bound_size/2,bound_size/2))
-                
-                
+
+
         normstart = np.array(start).astype('float32')/np.array(imgs.shape[1:])-0.5
         normsize = np.array(crop_size).astype('float32')/np.array(imgs.shape[1:])
         xx,yy,zz = np.meshgrid(np.linspace(normstart[0],normstart[0]+normsize[0],self.crop_size[0]/self.stride),
@@ -223,11 +223,11 @@ class Crop(object):
             max(start[2],0):min(start[2] + crop_size[2],imgs.shape[3])]
         crop = np.pad(crop,pad,'constant',constant_values =self.pad_value)
         for i in range(3):
-            target[i] = target[i] - start[i] 
+            target[i] = target[i] - start[i]
         for i in range(len(bboxes)):
             for j in range(3):
-                bboxes[i][j] = bboxes[i][j] - start[j] 
-                
+                bboxes[i][j] = bboxes[i][j] - start[j]
+
         if isScale:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
@@ -244,7 +244,7 @@ class Crop(object):
                 for j in range(4):
                     bboxes[i][j] = bboxes[i][j]*scale
         return crop, target, bboxes, coord
-    
+
 class LabelMapping(object):
     def __init__(self, config, phase):
         self.stride = np.array(config['stride'])
@@ -257,19 +257,19 @@ class LabelMapping(object):
         elif phase == 'val':
             self.th_pos = config['th_pos_val']
 
-            
+
     def __call__(self, input_size, target, bboxes):
         stride = self.stride
         num_neg = self.num_neg
         th_neg = self.th_neg
         anchors = self.anchors
         th_pos = self.th_pos
-        
+
         output_size = []
         for i in range(3):
             assert(input_size[i] % stride == 0)
             output_size.append(input_size[i] / stride)
-        
+
         label = -1 * np.ones(output_size + [len(anchors), 5], np.float32)
         offset = ((stride.astype('float')) - 1) / 2
         oz = np.arange(offset, offset + stride * (output_size[0] - 1) + 1, stride)
@@ -301,7 +301,7 @@ class LabelMapping(object):
         ih = np.concatenate(ih, 0)
         iw = np.concatenate(iw, 0)
         ia = np.concatenate(ia, 0)
-        flag = True 
+        flag = True
         if len(iz) == 0:
             pos = []
             for i in range(3):
@@ -317,7 +317,7 @@ class LabelMapping(object):
         dw = (target[2] - ow[pos[2]]) / anchors[pos[3]]
         dd = np.log(target[3] / anchors[pos[3]])
         label[pos[0], pos[1], pos[2], pos[3], :] = [1, dz, dh, dw, dd]
-        return label        
+        return label
 
 def select_samples(bbox, anchor, th, oz, oh, ow):
     z, h, w, d = bbox
@@ -330,12 +330,12 @@ def select_samples(bbox, anchor, th, oz, oh, ow):
         e = z + 0.5 * np.abs(d - anchor) + (max_overlap - min_overlap)
         mz = np.logical_and(oz >= s, oz <= e)
         iz = np.where(mz)[0]
-        
+
         s = h - 0.5 * np.abs(d - anchor) - (max_overlap - min_overlap)
         e = h + 0.5 * np.abs(d - anchor) + (max_overlap - min_overlap)
         mh = np.logical_and(oh >= s, oh <= e)
         ih = np.where(mh)[0]
-            
+
         s = w - 0.5 * np.abs(d - anchor) - (max_overlap - min_overlap)
         e = w + 0.5 * np.abs(d - anchor) + (max_overlap - min_overlap)
         mw = np.logical_and(ow >= s, ow <= e)
@@ -343,7 +343,7 @@ def select_samples(bbox, anchor, th, oz, oh, ow):
 
         if len(iz) == 0 or len(ih) == 0 or len(iw) == 0:
             return np.zeros((0,), np.int64), np.zeros((0,), np.int64), np.zeros((0,), np.int64)
-        
+
         lz, lh, lw = len(iz), len(ih), len(iw)
         iz = iz.reshape((-1, 1, 1))
         ih = ih.reshape((1, -1, 1))
@@ -355,19 +355,19 @@ def select_samples(bbox, anchor, th, oz, oh, ow):
             oz[iz].reshape((-1, 1)),
             oh[ih].reshape((-1, 1)),
             ow[iw].reshape((-1, 1))], axis = 1)
-        
+
         r0 = anchor / 2
         s0 = centers - r0
         e0 = centers + r0
-        
+
         r1 = d / 2
         s1 = bbox[:3] - r1
         s1 = s1.reshape((1, -1))
         e1 = bbox[:3] + r1
         e1 = e1.reshape((1, -1))
-        
+
         overlap = np.maximum(0, np.minimum(e0, e1) - np.maximum(s0, s1))
-        
+
         intersection = overlap[:, 0] * overlap[:, 1] * overlap[:, 2]
         union = anchor * anchor * anchor + d * d * d - intersection
 

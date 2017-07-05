@@ -41,7 +41,7 @@ def resample(imgs, spacing, new_spacing,order=2):
     else:
         raise ValueError('wrong shape')
 def worldToVoxelCoord(worldCoord, origin, spacing):
-     
+
     stretchedVoxelCoord = np.absolute(worldCoord - origin)
     voxelCoord = stretchedVoxelCoord / spacing
     return voxelCoord
@@ -59,10 +59,10 @@ def load_itk_image(filename):
 
     itkimage = sitk.ReadImage(filename)
     numpyImage = sitk.GetArrayFromImage(itkimage)
-     
+
     numpyOrigin = np.array(list(reversed(itkimage.GetOrigin())))
     numpySpacing = np.array(list(reversed(itkimage.GetSpacing())))
-     
+
     return numpyImage, numpyOrigin, numpySpacing,isflip
 
 def process_mask(mask):
@@ -76,8 +76,8 @@ def process_mask(mask):
         else:
             mask2 = mask1
         convex_mask[i_layer] = mask2
-    struct = generate_binary_structure(3,1)  
-    dilatedMask = binary_dilation(convex_mask,structure=struct,iterations=10) 
+    struct = generate_binary_structure(3,1)
+    dilatedMask = binary_dilation(convex_mask,structure=struct,iterations=10)
     return dilatedMask
 
 
@@ -90,15 +90,15 @@ def lumTrans(img):
     return newimg
 
 
-def savenpy(id,annos,filelist,data_path,prep_folder):        
+def savenpy(id,annos,filelist,data_path,prep_folder):
     resolution = np.array([1,1,1])
     name = filelist[id]
     label = annos[annos[:,0]==name]
     label = label[:,[3,1,2,4]].astype('float')
-    
+
     im, m1, m2, spacing = step1_python(os.path.join(data_path,name))
     Mask = m1+m2
-    
+
     newshape = np.round(np.array(Mask.shape)*spacing/resolution)
     xx,yy,zz= np.where(Mask)
     box = np.array([[np.min(xx),np.max(xx)],[np.min(yy),np.max(yy)],[np.min(zz),np.max(zz)]])
@@ -130,7 +130,7 @@ def savenpy(id,annos,filelist,data_path,prep_folder):
     sliceim = sliceim2[np.newaxis,...]
     np.save(os.path.join(prep_folder,name+'_clean.npy'),sliceim)
 
-    
+
     if len(label)==0:
         label2 = np.array([[0,0,0,0]])
     elif len(label[0])==0:
@@ -149,14 +149,14 @@ def savenpy(id,annos,filelist,data_path,prep_folder):
 
     print(name)
 
-def full_prep(step1=True,step2 = True):
+def full_prep(step1=True, step2=True):
     warnings.filterwarnings("ignore")
 
     #preprocess_result_path = './prep_result'
     prep_folder = config['preprocess_result_path']
     data_path = config['stage1_data_path']
     finished_flag = '.flag_prepkaggle'
-    
+
     if not os.path.exists(finished_flag):
         alllabelfiles = config['stage1_annos_path']
         tmp = []
@@ -173,16 +173,17 @@ def full_prep(step1=True,step2 = True):
 
         print('starting preprocessing')
         pool = Pool()
-        filelist = [f for f in os.listdir(data_path)]
+        filelist = os.listdir(data_path)
         partial_savenpy = partial(savenpy,annos= alllabel,filelist=filelist,data_path=data_path,prep_folder=prep_folder )
 
         N = len(filelist)
             #savenpy(1)
-        _=pool.map(partial_savenpy,range(N))
+        _ = pool.map(partial_savenpy,range(N))
         pool.close()
         pool.join()
         print('end preprocessing')
-    f= open(finished_flag,"w+")        
+
+    f= open(finished_flag,"w+")
 
 def savenpy_luna(id,annos,filelist,luna_segment,luna_data,savepath):
     islabel = True
@@ -190,7 +191,7 @@ def savenpy_luna(id,annos,filelist,luna_segment,luna_data,savepath):
     resolution = np.array([1,1,1])
 #     resolution = np.array([2,2,2])
     name = filelist[id]
-    
+
     Mask,origin,spacing,isflip = load_itk_image(os.path.join(luna_segment,name+'.mhd'))
     if isflip:
         Mask = Mask[:,::-1,::-1]
@@ -198,7 +199,7 @@ def savenpy_luna(id,annos,filelist,luna_segment,luna_data,savepath):
     m1 = Mask==3
     m2 = Mask==4
     Mask = m1+m2
-    
+
     xx,yy,zz= np.where(Mask)
     box = np.array([[np.min(xx),np.max(xx)],[np.min(yy),np.max(yy)],[np.min(zz),np.max(zz)]])
     box = box*np.expand_dims(spacing,1)/np.expand_dims(resolution,1)
@@ -206,7 +207,7 @@ def savenpy_luna(id,annos,filelist,luna_segment,luna_data,savepath):
     margin = 5
     extendbox = np.vstack([np.max([[0,0,0],box[:,0]-margin],0),np.min([newshape,box[:,1]+2*margin],axis=0).T]).T
 
-    this_annos = np.copy(annos[annos[:,0]==int(name)])        
+    this_annos = np.copy(annos[annos[:,0]==int(name)])
 
     if isClean:
         convex_mask = m1
@@ -226,7 +227,7 @@ def savenpy_luna(id,annos,filelist,luna_segment,luna_data,savepath):
         sliceim = sliceim*dilatedMask+pad_value*(1-dilatedMask).astype('uint8')
         bones = (sliceim*extramask)>bone_thresh
         sliceim[bones] = pad_value
-        
+
         sliceim1,_ = resample(sliceim,spacing,resolution,order=1)
         sliceim2 = sliceim1[extendbox[0,0]:extendbox[0,1],
                     extendbox[1,0]:extendbox[1,1],
@@ -240,13 +241,13 @@ def savenpy_luna(id,annos,filelist,luna_segment,luna_data,savepath):
         this_annos = np.copy(annos[annos[:,0]==int(name)])
         label = []
         if len(this_annos)>0:
-            
+
             for c in this_annos:
                 pos = worldToVoxelCoord(c[1:4][::-1],origin=origin,spacing=spacing)
                 if isflip:
                     pos[1:] = Mask.shape[1:3]-pos[1:]
                 label.append(np.concatenate([pos,[c[4]/spacing[1]]]))
-            
+
         label = np.array(label)
         if len(label)==0:
             label2 = np.array([[0,0,0,0]])
@@ -257,7 +258,7 @@ def savenpy_luna(id,annos,filelist,luna_segment,luna_data,savepath):
             label2[:3] = label2[:3]-np.expand_dims(extendbox[:,0],1)
             label2 = label2[:4].T
         np.save(os.path.join(savepath,name+'_label.npy'),label2)
-        
+
     print(name)
 
 def preprocess_luna():
@@ -274,7 +275,7 @@ def preprocess_luna():
         if not os.path.exists(savepath):
             os.mkdir(savepath)
 
-        
+
         pool = Pool()
         partial_savenpy_luna = partial(savenpy_luna,annos=annos,filelist=filelist,
                                        luna_segment=luna_segment,luna_data=luna_data,savepath=savepath)
@@ -286,7 +287,7 @@ def preprocess_luna():
         pool.join()
     print('end preprocessing luna')
     f= open(finished_flag,"w+")
-    
+
 def prepare_luna():
     print('start changing luna name')
     luna_raw = config['luna_raw']
@@ -294,7 +295,7 @@ def prepare_luna():
     luna_data = config['luna_data']
     luna_segment = config['luna_segment']
     finished_flag = '.flag_prepareluna'
-    
+
     if not os.path.exists(finished_flag):
 
         subsetdirs = [os.path.join(luna_raw,f) for f in os.listdir(luna_raw) if f.startswith('subset') and os.path.isdir(os.path.join(luna_raw,f))]
@@ -313,11 +314,11 @@ def prepare_luna():
 #         ids = np.array(['0'*(3-len(n))+n for n in ids])
 #         pds = pandas.DataFrame(np.array([ids,allnames]).T)
 #         namelist = list(allnames)
-        
+
         abbrevs = np.array(pandas.read_csv(config['luna_abbr'],header=None))
         namelist = list(abbrevs[:,1])
         ids = abbrevs[:,0]
-        
+
         for d in subsetdirs:
             files = os.listdir(d)
             files.sort()
@@ -339,7 +340,7 @@ def prepare_luna():
             with open(os.path.join(luna_data,file),'w') as f:
                 f.writelines(content)
 
-                
+
         seglist = os.listdir(luna_segment)
         for f in seglist:
             if f.endswith('.mhd'):
@@ -369,9 +370,9 @@ def prepare_luna():
                 f.writelines(content)
     print('end changing luna name')
     f= open(finished_flag,"w+")
-    
+
 if __name__=='__main__':
     full_prep(step1=True,step2=True)
     prepare_luna()
     preprocess_luna()
-    
+
