@@ -19,7 +19,10 @@ def make_s3_path(dirpath, key):
 
 
 def load_scan(dirpath):
+    print('loading scan %s' % dirpath)
+
     if dirpath.startswith('s3://'):
+        print('fetching files from %s' % dirpath)
         import s3fs
         import boto3
 
@@ -27,6 +30,7 @@ def load_scan(dirpath):
         bucket_name = dirpath.split('/')[2]
         bucket = boto3.resource('s3').Bucket(bucket_name)
         prefix = '%s/' % dirpath.split('/')[3]
+        print('parsed prefix %s' % prefix)
         filtered = bucket.objects.filter(Prefix=prefix)
         file_paths = (make_s3_path(dirpath, obj.key) for obj in filtered)
         filelist = map(fs.open, file_paths)
@@ -34,6 +38,7 @@ def load_scan(dirpath):
         filelist = map(p.abspath, os.listdir(dirpath))
 
     slices = sorted(map(dicom.read_file, filelist), key=keyfunc)
+    print('read %i slices' % len(slices))
     first_slice_ipp = slices[0].ImagePositionPatient[2]
 
     if first_slice_ipp == slices[1].ImagePositionPatient[2]:

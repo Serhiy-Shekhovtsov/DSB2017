@@ -50,7 +50,7 @@ else:
         use_existing=config_submit['use_exsiting_preprocessing'],
         dirlist=dirlist)
 
-print(sum(processed))
+print('processed %i files' % sum(processed))
 
 nodmodel = import_module(config_submit['detector_model'].split('.py')[0])
 nodmodel_config, nod_net, loss, get_pbb = nodmodel.get_model()

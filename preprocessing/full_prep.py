@@ -87,6 +87,7 @@ def savenpy(dirname, prep_folder, data_path, use_existing=True):
         print(dirname + ' already processed')
         processed = 0
     else:
+        print(dirname + ' not yet processed')
         case_path = p.join(data_path, dirname)
         im, m1, m2, spacing = step1_python(case_path)
         Mask = m1 + m2
@@ -129,16 +130,15 @@ def savenpy(dirname, prep_folder, data_path, use_existing=True):
 
 
 def full_prep(data_path, prep_folder, use_existing=True, **kwargs):
-    print(len(kwargs.get('dirlist', [])))
     n_worker = kwargs.get('n_worker')
     warnings.filterwarnings('ignore')
 
     if not p.exists(prep_folder):
         os.mkdir(prep_folder)
 
-    print('starting preprocessing')
     pool = Pool(n_worker)
     dirlist = kwargs.get('dirlist') or os.listdir(data_path)
+    print('start preprocessing %i directories...' % len(dirlist))
 
     partial_savenpy = partial(
         savenpy, prep_folder=prep_folder, data_path=data_path,
