@@ -26,8 +26,7 @@ class DataBowl3Detector(Dataset):
         self.isScale = config['aug_scale']
         self.r_rand = config['r_rand_crop']
         self.augtype = config['augtype']
-	self.pad_value = config['pad_value']
-        
+        self.pad_value = config['pad_value']
         self.split_comber = split_comber
 
         idcs = split
