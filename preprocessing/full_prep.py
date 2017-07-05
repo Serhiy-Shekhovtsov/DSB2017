@@ -133,7 +133,7 @@ def full_prep(data_path, prep_folder, use_existing=True, **kwargs):
 
     print('starting preprocessing')
     pool = Pool(n_worker)
-    filelist = kwargs.get('filelist', os.listdir(data_path))
+    filelist = kwargs.get('filelist') or os.listdir(data_path)
 
     partial_savenpy = partial(
         savenpy, filelist=filelist, prep_folder=prep_folder,
