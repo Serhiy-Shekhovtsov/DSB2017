@@ -30,7 +30,7 @@ class Net(nn.Module):
             nn.Conv3d(16, 16, kernel_size = 3, padding = 1),
             nn.BatchNorm3d(16),
             nn.ReLU(inplace = True))
-        
+
         # 3 poolings, each pooling downsamples the feature map by a factor 2.
         # 3 groups of blocks. The first block of each group has one pooling.
         num_blocks = [6,6,6,6]
@@ -49,7 +49,7 @@ class Net(nn.Module):
                 else:
                     blocks.append(PostRes(n_out[i], n_out[i]))
             setattr(self, 'group' + str(i + 1), nn.Sequential(*blocks))
-        
+
         self.path1 = nn.Sequential(
             nn.Conv3d(64, 32, kernel_size = 3, padding = 1),
             nn.BatchNorm3d(32),

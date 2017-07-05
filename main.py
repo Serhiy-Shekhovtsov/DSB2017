@@ -107,7 +107,7 @@ def test_casenet(model,testset):
     data_loader = DataLoader(
         testset, batch_size=1, shuffle=False, num_workers=32, pin_memory=True)
 
-    #model = model.cuda()
+    # model = model.cuda()
     model.eval()
     predlist = []
 
@@ -117,7 +117,8 @@ def test_casenet(model,testset):
         x = Variable(x).cuda()
         nodulePred, casePred, _ = model(x,coord)
         predlist.append(casePred.data.cpu().numpy())
-        #print([i,data_loader.dataset.split[i,1],casePred.data.cpu().numpy()])
+        # print(
+        #     [i, data_loader.dataset.split[i, 1], casePred.data.cpu().numpy()])
 
     return np.concatenate(predlist)
 

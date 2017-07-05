@@ -11,6 +11,8 @@ import warnings
 from scipy.ndimage.interpolation import rotate
 from scipy.ndimage.morphology import binary_dilation,generate_binary_structure
 
+
+
 class DataBowl3Detector(Dataset):
     def __init__(self, filelist, config, phase = 'train', split_comber=None):
         assert(phase == 'train' or phase == 'val' or phase == 'test')
@@ -46,8 +48,13 @@ class DataBowl3Detector(Dataset):
             else:
                 self.filenames = [os.path.join(data_dir, '%s_img.npy' % idx) for idx in idcs]
 
-        self.kagglenames = [f for f in self.filenames if len(f.split('/')[-1].split('_')[0])>20]
-        self.lunanames = [f for f in self.filenames if len(f.split('/')[-1].split('_')[0])<20]
+        self.kagglenames = [
+            f for f in self.filenames
+            if len(f.split('/')[-1].split('_')[0]) > 20]
+
+        self.lunanames = [
+            f for f in self.filenames
+            if len(f.split('/')[-1].split('_')[0]) < 20]
 
         labels = []
 
@@ -59,34 +66,40 @@ class DataBowl3Detector(Dataset):
                     l = np.load(os.path.join(data_dir, '%s_label.npy' %idx))
             else:
                 l = np.load(os.path.join(data_dir, '%s_label.npy' %idx))
+
             labels.append(l)
 
         self.sample_bboxes = labels
+
         if self.phase!='test':
             self.bboxes = []
+
             for i, l in enumerate(labels):
                 if len(l) > 0 :
                     for t in l:
-                        if t[3]>sizelim:
-                            self.bboxes.append([np.concatenate([[i],t])])
-                        if t[3]>sizelim2:
-                            self.bboxes+=[[np.concatenate([[i],t])]]*2
-                        if t[3]>sizelim3:
-                            self.bboxes+=[[np.concatenate([[i],t])]]*4
-            self.bboxes = np.concatenate(self.bboxes,axis = 0)
+                        if t[3] > sizelim:
+                            self.bboxes.append([np.concatenate([[i], t])])
+
+                        if t[3] > sizelim2:
+                            self.bboxes+=[[np.concatenate([[i], t])]] * 2
+
+                        if t[3] > sizelim3:
+                            self.bboxes+=[[np.concatenate([[i], t])]] * 4
+
+            self.bboxes = np.concatenate(self.bboxes,axis=0)
 
         self.crop = Crop(config)
         self.label_mapping = LabelMapping(config, self.phase)
 
     def __getitem__(self, idx,split=None):
         t = time.time()
-        np.random.seed(int(str(t%1)[2:7]))#seed according to time
+        np.random.seed(int(str(t % 1)[2:7]))#seed according to time
 
 	isRandomImg  = False
         if self.phase !='test':
-            if idx>=len(self.bboxes):
+            if idx >= len(self.bboxes):
                 isRandom = True
-                idx = idx%len(self.bboxes)
+                idx = idx % len(self.bboxes)
                 isRandomImg = np.random.randint(2)
             else:
                 isRandom = False
@@ -101,9 +114,13 @@ class DataBowl3Detector(Dataset):
                 bboxes = self.sample_bboxes[int(bbox[0])]
                 isScale = self.augtype['scale'] and (self.phase=='train')
                 sample, target, bboxes, coord = self.crop(imgs, bbox[1:], bboxes,isScale,isRandom)
+
                 if self.phase=='train' and not isRandom:
-                     sample, target, bboxes, coord = augment(sample, target, bboxes, coord,
-                        ifflip = self.augtype['flip'], ifrotate=self.augtype['rotate'], ifswap = self.augtype['swap'])
+                    sample, target, bboxes, coord = augment(
+                        sample, target, bboxes, coord,
+                        ifflip=self.augtype['flip'],
+                        ifrotate=self.augtype['rotate'],
+                        ifswap = self.augtype['swap'])
             else:
                 randimid = np.random.randint(len(self.kagglenames))
 		filename = self.kagglenames[randimid]
@@ -111,6 +128,7 @@ class DataBowl3Detector(Dataset):
                 bboxes = self.sample_bboxes[randimid]
                 isScale = self.augtype['scale'] and (self.phase=='train')
                 sample, target, bboxes, coord = self.crop(imgs, [], bboxes,isScale=False,isRand=True)
+
             label = self.label_mapping(sample.shape[1:], target, bboxes)
             sample = sample.astype(np.float32)
 	    #if filename in self.kagglenames:
@@ -148,10 +166,11 @@ class DataBowl3Detector(Dataset):
 
 
 def augment(sample, target, bboxes, coord, ifflip = True, ifrotate=True, ifswap = True):
-    #                     angle1 = np.random.rand()*180
+    # angle1 = np.random.rand()*180
     if ifrotate:
         validrot = False
         counter = 0
+
         while not validrot:
             newtarget = np.copy(target)
             angle1 = (np.random.rand()-0.5)*20
@@ -167,7 +186,8 @@ def augment(sample, target, bboxes, coord, ifflip = True, ifrotate=True, ifswap 
                     box[1:3] = np.dot(rotmat,box[1:3]-size/2)+size/2
             else:
                 counter += 1
-                if counter ==3:
+
+                if counter == 3:
                     break
     if ifswap:
         if sample.shape[1]==sample.shape[2] and sample.shape[1]==sample.shape[3]:
@@ -212,7 +232,6 @@ class Crop(object):
         bound_size = self.bound_size
         target = np.copy(target)
         bboxes = np.copy(bboxes)
-
         start = []
 
         for i in range(3):
@@ -224,7 +243,8 @@ class Crop(object):
                 s = np.max([imgs.shape[i+1]-crop_size[i]/2,imgs.shape[i+1]/2+bound_size])
                 e = np.min([crop_size[i]/2,              imgs.shape[i+1]/2-bound_size])
                 target = np.array([np.nan,np.nan,np.nan,np.nan])
-            if s>e:
+
+            if s > e:
                 start.append(np.random.randint(e,s))#!
             else:
                 start.append(int(target[i])-crop_size[i]/2+np.random.randint(-bound_size/2,bound_size/2))
@@ -244,7 +264,8 @@ class Crop(object):
             rightpad = max(0,start[i]+crop_size[i]-imgs.shape[i+1])
             pad.append([leftpad,rightpad])
 
-        crop = imgs[:,
+        crop = imgs[
+            :,
             max(start[0],0):min(start[0] + crop_size[0],imgs.shape[1]),
             max(start[1],0):min(start[1] + crop_size[1],imgs.shape[2]),
             max(start[2],0):min(start[2] + crop_size[2],imgs.shape[3])]
@@ -442,4 +463,3 @@ def collate(batch):
     elif isinstance(batch[0], collections.Iterable):
         transposed = zip(*batch)
         return [collate(samples) for samples in transposed]
-

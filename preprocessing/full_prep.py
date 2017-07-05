@@ -19,30 +19,31 @@ from step1 import step1_python
 
 def process_mask(mask):
     convex_mask = np.copy(mask)
-    for i_layer in range(convex_mask.shape[0]):
-        mask1  = np.ascontiguousarray(mask[i_layer])
 
-        if np.sum(mask1)>0:
+    for i_layer in range(convex_mask.shape[0]):
+        mask1 = np.ascontiguousarray(mask[i_layer])
+
+        if np.sum(mask1) > 0:
             mask2 = convex_hull_image(mask1)
 
-            if np.sum(mask2)>2*np.sum(mask1):
+            if np.sum(mask2) > 2 * np.sum(mask1):
                 mask2 = mask1
         else:
             mask2 = mask1
 
         convex_mask[i_layer] = mask2
 
-    struct = generate_binary_structure(3,1)
-    dilatedMask = binary_dilation(convex_mask,structure=struct,iterations=10)
+    struct = generate_binary_structure(3, 1)
+    dilatedMask = binary_dilation(convex_mask, structure=struct, iterations=10)
     return dilatedMask
 
 
 def lumTrans(img):
-    lungwin = np.array([-1200.,600.])
-    newimg = (img-lungwin[0])/(lungwin[1]-lungwin[0])
-    newimg[newimg<0]=0
-    newimg[newimg>1]=1
-    newimg = (newimg*255).astype('uint8')
+    lungwin = np.array([-1200., 600.])
+    newimg = (img - lungwin[0]) / (lungwin[1] - lungwin[0])
+    newimg[newimg < 0] = 0
+    newimg[newimg > 1] = 1
+    newimg = (newimg * 255).astype('uint8')
     return newimg
 
 
@@ -94,33 +95,43 @@ def savenpy(dirname, prep_folder, data_path, use_existing=True):
 
         newshape = np.round(np.array(Mask.shape) * spacing / resolution)
         xx, yy, zz = np.where(Mask)
-        box = np.array([[np.min(xx),np.max(xx)],[np.min(yy),np.max(yy)],[np.min(zz),np.max(zz)]])
-        box = box * np.expand_dims(spacing,1)/np.expand_dims(resolution,1)
+        box = np.array(
+            [
+                [np.min(xx), np.max(xx)],
+                [np.min(yy), np.max(yy)],
+                [np.min(zz), np.max(zz)]])
+
+        box = box * np.expand_dims(spacing,1) / np.expand_dims(resolution, 1)
         box = np.floor(box).astype('int')
         margin = 5
-        extendbox = np.vstack([np.max([[0,0,0],box[:,0]-margin],0),np.min([newshape,box[:,1]+2*margin],axis=0).T]).T
+        extendbox = np.vstack(
+            [
+                np.max([[0, 0, 0], box[:,0] - margin], 0),
+                np.min([newshape, box[:,1] + 2 * margin], axis=0).T]).T
+
         extendbox = extendbox.astype('int')
 
         convex_mask = m1
         dm1 = process_mask(m1)
         dm2 = process_mask(m2)
-        dilatedMask = dm1+dm2
-        Mask = m1+m2
+        dilatedMask = dm1 + dm2
+        Mask = m1 + m2
         extramask = dilatedMask ^ Mask
         bone_thresh = 210
         pad_value = 170
 
         im[np.isnan(im)] =- 2000
         sliceim = lumTrans(im)
-        sliceim = sliceim*dilatedMask+pad_value*(1-dilatedMask).astype('uint8')
-        bones = sliceim*extramask>bone_thresh
+        sliceim = sliceim * dilatedMask + pad_value * (1 - dilatedMask).astype('uint8')
+        bones = sliceim * extramask > bone_thresh
         sliceim[bones] = pad_value
-        sliceim1,_ = resample(sliceim,spacing,resolution,order=1)
-        sliceim2 = sliceim1[extendbox[0,0]:extendbox[0,1],
-                    extendbox[1,0]:extendbox[1,1],
-                    extendbox[2,0]:extendbox[2,1]]
+        sliceim1 = resample(sliceim, spacing, resolution, order=1)[0]
+        sliceim2 = sliceim1[
+            extendbox[0, 0]:extendbox[0, 1],
+            extendbox[1, 0]:extendbox[1, 1],
+            extendbox[2, 0]:extendbox[2, 1]]
 
-        sliceim = sliceim2[np.newaxis,...]
+        sliceim = sliceim2[np.newaxis, ...]
         np.save(p.join(prep_folder, dirname + '_clean'), sliceim)
         np.save(p.join(prep_folder, dirname + '_label'), np.array([[0,0,0,0]]))
         print(dirname + ' done')
