@@ -12,7 +12,7 @@ from scipy.ndimage.interpolation import rotate
 from scipy.ndimage.morphology import binary_dilation,generate_binary_structure
 
 class DataBowl3Detector(Dataset):
-    def __init__(self, split, config, phase = 'train',split_comber=None):
+    def __init__(self, filelist, config, phase = 'train', split_comber=None):
         assert(phase == 'train' or phase == 'val' or phase == 'test')
         sizelim = config['sizelim']/config['reso']
         sizelim2 = config['sizelim2']/config['reso']
@@ -29,7 +29,7 @@ class DataBowl3Detector(Dataset):
         self.pad_value = config['pad_value']
         self.split_comber = split_comber
 
-        idcs = split
+        idcs = filelist
 
         if phase != 'test':
             idcs = [f for f in idcs if f not in self.blacklist]

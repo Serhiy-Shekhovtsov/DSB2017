@@ -173,7 +173,7 @@ def full_prep(step1=True, step2=True):
 
         print('starting preprocessing')
         pool = Pool()
-        filelist = [f for f in os.listdir(data_path)]
+        filelist = os.listdir(data_path)
         partial_savenpy = partial(savenpy,annos= alllabel,filelist=filelist,data_path=data_path,prep_folder=prep_folder )
 
         N = len(filelist)
@@ -375,3 +375,4 @@ if __name__=='__main__':
     full_prep(step1=True,step2=True)
     prepare_luna()
     preprocess_luna()
+

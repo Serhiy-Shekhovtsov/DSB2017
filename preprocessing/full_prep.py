@@ -123,7 +123,8 @@ def savenpy(id, filelist, prep_folder, data_path, use_existing=True):
         print(name + ' done')
 
 
-def full_prep(data_path, prep_folder, n_worker=None, use_existing=True):
+def full_prep(data_path, prep_folder, use_existing=True, **kwargs):
+    n_worker = kwargs.get('n_worker')
     warnings.filterwarnings("ignore")
 
     if not p.exists(prep_folder):
@@ -131,7 +132,7 @@ def full_prep(data_path, prep_folder, n_worker=None, use_existing=True):
 
     print('starting preprocessing')
     pool = Pool(n_worker)
-    filelist = [f for f in os.listdir(data_path)]
+    filelist = kwargs.get('filelist', os.listdir(data_path))
 
     partial_savenpy = partial(
         savenpy, filelist=filelist, prep_folder=prep_folder,

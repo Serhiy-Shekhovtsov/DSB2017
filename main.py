@@ -24,24 +24,25 @@ skip_prep = config_submit['skip_preprocessing']
 skip_detect = config_submit['skip_detect']
 
 if datapath.startswith('s3://'):
+    print('loading from s3...')
     import boto3
     s3 = boto3.resource('s3')
     bucket = s3.Bucket(datapath.split('/')[2])
+    filelist = [obj.key for obj in bucket.objects.all()]
 else:
-    s3 = None
+    print('loading from file-system...')
+    filelist = os.listdir(datapath)
 
-if skip_prep and s3:
-    print('skipping prep and loading from s3...')
-    testsplit = [obj.key for obj in bucket.objects.all()]
-elif skip_prep:
+if skip_prep:
     print('skipping prep...')
-    testsplit = os.listdir(datapath)
+    testsplit = filelist
 else:
     print('prepping...')
     testsplit = full_prep(
         datapath, prep_result_path,
         n_worker=config_submit['n_worker_preprocessing'],
-        use_existing=config_submit['use_exsiting_preprocessing'])
+        use_existing=config_submit['use_exsiting_preprocessing'],
+        filelist=filelist)
 
 print(testsplit)
 
