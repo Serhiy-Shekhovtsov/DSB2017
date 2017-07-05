@@ -1,5 +1,7 @@
 import os
 
+from os import path as p
+
 import numpy as np # linear algebra
 import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
 import dicom
@@ -8,16 +10,36 @@ import matplotlib.pyplot as plt
 
 from skimage import measure, morphology
 
+keyfunc = lambda x: float(x.ImagePositionPatient[2])
 
-def load_scan(path):
-    slices = [dicom.read_file(path + '/' + s) for s in os.listdir(path)]
-    slices.sort(key=lambda x: float(x.ImagePositionPatient[2]))
-    slice_0_ipp = slices[0].ImagePositionPatient[2]
 
-    if slice_0_ipp == slices[1].ImagePositionPatient[2]:
+def make_s3_path(dirpath, key):
+    # key contains part of the dirpath, so we have to strip it out first
+    return '/'.join([dirpath] + key.split('/')[1:])
+
+
+def load_scan(dirpath):
+    if dirpath.startswith('s3://'):
+        import s3fs
+        import boto3
+
+        fs = s3fs.S3FileSystem()
+        bucket_name = dirpath.split('/')[2]
+        bucket = boto3.resource('s3').Bucket(bucket_name)
+        prefix = '%s/' % dirpath.split('/')[3]
+        filtered = bucket.objects.filter(Prefix=prefix)
+        file_paths = (make_s3_path(dirpath, obj.key) for obj in filtered)
+        filelist = map(fs.open, file_paths)
+    else:
+        filelist = map(p.abspath, os.listdir(dirpath))
+
+    slices = sorted(map(dicom.read_file, filelist), key=keyfunc)
+    first_slice_ipp = slices[0].ImagePositionPatient[2]
+
+    if first_slice_ipp == slices[1].ImagePositionPatient[2]:
         sec_num = 2
 
-        while slice_0_ipp == slices[sec_num].ImagePositionPatient[2]:
+        while first_slice_ipp == slices[sec_num].ImagePositionPatient[2]:
             sec_num = sec_num + 1
 
         slice_num = int(len(slices) / sec_num)

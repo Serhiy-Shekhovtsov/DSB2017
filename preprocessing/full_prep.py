@@ -72,22 +72,23 @@ def resample(imgs, spacing, new_spacing, order=2):
         raise ValueError('wrong shape')
 
 
-def savenpy(filename, prep_folder, data_path, use_existing=True):
-    print('saving %s...' % filename)
+def savenpy(dirname, prep_folder, data_path, use_existing=True):
+    print('saving %s...' % dirname)
     resolution = np.array([1, 1, 1])
 
     if use_existing:
-        label_path = p.join(prep_folder, filename + '_label.npy')
-        clean_path = p.join(prep_folder, filename + '_clean.npy')
+        label_path = p.join(prep_folder, dirname + '_label.npy')
+        clean_path = p.join(prep_folder, dirname + '_clean.npy')
         exists = p.exists(label_path) and p.exists(clean_path)
     else:
         exists = False
 
     if exists:
-        print(filename +' already processed')
+        print(dirname + ' already processed')
         processed = 0
     else:
-        im, m1, m2, spacing = step1_python(p.join(data_path, filename))
+        case_path = p.join(data_path, dirname)
+        im, m1, m2, spacing = step1_python(case_path)
         Mask = m1 + m2
 
         newshape = np.round(np.array(Mask.shape) * spacing / resolution)
@@ -119,16 +120,16 @@ def savenpy(filename, prep_folder, data_path, use_existing=True):
                     extendbox[2,0]:extendbox[2,1]]
 
         sliceim = sliceim2[np.newaxis,...]
-        np.save(p.join(prep_folder, filename + '_clean'), sliceim)
-        np.save(p.join(prep_folder, filename + '_label'), np.array([[0,0,0,0]]))
-        print(filename + ' done')
+        np.save(p.join(prep_folder, dirname + '_clean'), sliceim)
+        np.save(p.join(prep_folder, dirname + '_label'), np.array([[0,0,0,0]]))
+        print(dirname + ' done')
         processed = 1
 
     return processed
 
 
 def full_prep(data_path, prep_folder, use_existing=True, **kwargs):
-    print(len(kwargs.get('filelist', [])))
+    print(len(kwargs.get('dirlist', [])))
     n_worker = kwargs.get('n_worker')
     warnings.filterwarnings('ignore')
 
@@ -137,13 +138,13 @@ def full_prep(data_path, prep_folder, use_existing=True, **kwargs):
 
     print('starting preprocessing')
     pool = Pool(n_worker)
-    filelist = kwargs.get('filelist') or os.listdir(data_path)
+    dirlist = kwargs.get('dirlist') or os.listdir(data_path)
 
     partial_savenpy = partial(
         savenpy, prep_folder=prep_folder, data_path=data_path,
         use_existing=use_existing)
 
-    mapped = pool.map(partial_savenpy, filelist)
+    mapped = pool.map(partial_savenpy, dirlist)
     pool.close()
     pool.join()
     print('end preprocessing')

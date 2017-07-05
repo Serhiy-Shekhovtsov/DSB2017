@@ -26,23 +26,29 @@ skip_detect = config_submit['skip_detect']
 if datapath.startswith('s3://'):
     print('loading %s from s3...' % datapath)
     import boto3
-    s3 = boto3.resource('s3')
-    bucket = s3.Bucket(datapath.split('/')[2])
-    filelist = [obj.key for obj in bucket.objects.all()]
+
+    client = boto3.client('s3')
+    bucket_name = datapath.split('/')[2]
+    paginator = client.get_paginator('list_objects')
+    result = paginator.paginate(Bucket=bucket_name, Delimiter='/')
+
+    dirlist = [
+        res.get('Prefix').rstrip('/')
+        for res in result.search('CommonPrefixes')]
 else:
     print('loading %s from file-system...' % datapath)
-    filelist = os.listdir(datapath)
+    dirlist = os.listdir(datapath)
 
 if skip_prep:
     print('skipping prep...')
-    testsplit = filelist
+    testsplit = dirlist
 else:
     print('prepping...')
     processed = full_prep(
         datapath, prep_result_path,
         n_worker=config_submit['n_worker_preprocessing'],
         use_existing=config_submit['use_exsiting_preprocessing'],
-        filelist=filelist)
+        dirlist=dirlist)
 
 print(sum(processed))
 
@@ -61,7 +67,7 @@ bbox_result_path = './bbox_result'
 if not os.path.exists(bbox_result_path):
     os.mkdir(bbox_result_path)
 
-# filelist = [
+# dirlist = [
 #     f.split('_clean')[0] for f in os.listdir(prep_result_path) if '_clean' in f]
 
 if not skip_detect:
@@ -74,7 +80,7 @@ if not skip_detect:
         pad_value=nodmodel_config['pad_value'])
 
     dataset = DataBowl3Detector(
-        filelist, nodmodel_config, phase='test', split_comber=split_comber)
+        dirlist, nodmodel_config, phase='test', split_comber=split_comber)
 
     test_loader = DataLoader(
         dataset, batch_size=1, shuffle=False, num_workers=32,
@@ -118,9 +124,9 @@ def test_casenet(model,testset):
 casemodel_config['bboxpath'] = bbox_result_path
 casemodel_config['datadir'] = prep_result_path
 
-dataset = DataBowl3Classifier(filelist, casemodel_config, phase='test')
+dataset = DataBowl3Classifier(dirlist, casemodel_config, phase='test')
 predlist = test_casenet(casenet, dataset).T
-anstable = np.concatenate([[filelist], predlist], 0).T
+anstable = np.concatenate([[dirlist], predlist], 0).T
 df = pandas.DataFrame(anstable)
 df.columns = {'id', 'cancer'}
 df.to_csv(filename, index=False)
