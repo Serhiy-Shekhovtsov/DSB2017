@@ -90,7 +90,7 @@ def savenpy(id, filelist, prep_folder, data_path, use_existing=True):
         Mask = m1 + m2
 
         newshape = np.round(np.array(Mask.shape) * spacing / resolution)
-        xx,yy,zz= np.where(Mask)
+        xx, yy, zz = np.where(Mask)
         box = np.array([[np.min(xx),np.max(xx)],[np.min(yy),np.max(yy)],[np.min(zz),np.max(zz)]])
         box = box * np.expand_dims(spacing,1)/np.expand_dims(resolution,1)
         box = np.floor(box).astype('int')
@@ -125,7 +125,7 @@ def savenpy(id, filelist, prep_folder, data_path, use_existing=True):
 
 def full_prep(data_path, prep_folder, use_existing=True, **kwargs):
     n_worker = kwargs.get('n_worker')
-    warnings.filterwarnings("ignore")
+    warnings.filterwarnings('ignore')
 
     if not p.exists(prep_folder):
         os.mkdir(prep_folder)
@@ -139,7 +139,7 @@ def full_prep(data_path, prep_folder, use_existing=True, **kwargs):
         data_path=data_path, use_existing=use_existing)
 
     N = len(filelist)
-    _ = pool.map(partial_savenpy,range(N))
+    _ = pool.map(partial_savenpy, range(N))
     pool.close()
     pool.join()
     print('end preprocessing')
