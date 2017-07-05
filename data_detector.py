@@ -1,16 +1,18 @@
-import numpy as np
-import torch
-from torch.utils.data import Dataset
 import os
 import time
 import collections
 import random
-from layers import iou
-from scipy.ndimage import zoom
 import warnings
+
+import numpy as np
+import torch
+
+from torch.utils.data import Dataset
+from scipy.ndimage import zoom
 from scipy.ndimage.interpolation import rotate
 from scipy.ndimage.morphology import binary_dilation,generate_binary_structure
 
+from layers import iou
 
 
 class DataBowl3Detector(Dataset):

@@ -1,20 +1,22 @@
 import argparse
 import os
 import time
-import numpy as np
-from importlib import import_module
 import shutil
-from utils import *
 import sys
-from split_combine import SplitComb
 
+from importlib import import_module
+
+import numpy as np
 import torch
+
+from torch import optim
 from torch.nn import DataParallel
 from torch.backends import cudnn
-from torch.utils.data import DataLoader
-from torch import optim
 from torch.autograd import Variable
+from torch.utils.data import DataLoader
 
+from utils import *
+from split_combine import SplitComb
 from layers import acc
 
 
