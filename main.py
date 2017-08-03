@@ -103,7 +103,7 @@ casenet = DataParallel(casenet)
 filename = config_submit['outputfile']
 
 
-def test_casenet(model,testset):
+def test_casenet(model, testset):
     data_loader = DataLoader(
         testset, batch_size=1, shuffle=False, num_workers=32, pin_memory=True)
 

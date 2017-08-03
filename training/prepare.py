@@ -1,26 +1,27 @@
 import os
 import shutil
-import numpy as np
-from config_training import config
+import warnings
+import sys
+sys.path.append('../preprocessing')
 
+from multiprocessing import Pool
+from functools import partial
+from os import paths as p
 
-from scipy.io import loadmat
 import numpy as np
 import h5py
 import pandas
 import scipy
-from scipy.ndimage.interpolation import zoom
-from skimage import measure
 import SimpleITK as sitk
-from scipy.ndimage.morphology import binary_dilation,generate_binary_structure
+
+from scipy.io import loadmat
+from scipy.ndimage.interpolation import zoom
+from scipy.ndimage.morphology import binary_dilation, generate_binary_structure
+from skimage import measure
 from skimage.morphology import convex_hull_image
-import pandas
-from multiprocessing import Pool
-from functools import partial
-import sys
-sys.path.append('../preprocessing')
+
 from step1 import step1_python
-import warnings
+from config_training import config
 
 def resample(imgs, spacing, new_spacing,order=2):
     if len(imgs.shape)==3:
@@ -96,8 +97,8 @@ def savenpy(id,annos,filelist,data_path,prep_folder):
     label = annos[annos[:,0]==name]
     label = label[:,[3,1,2,4]].astype('float')
 
-    im, m1, m2, spacing = step1_python(os.path.join(data_path,name))
-    Mask = m1+m2
+    im, m1, m2, spacing = step1_python(p.join(data_path,name))
+    Mask = m1 + m2
 
     newshape = np.round(np.array(Mask.shape)*spacing/resolution)
     xx,yy,zz= np.where(Mask)
@@ -107,8 +108,6 @@ def savenpy(id,annos,filelist,data_path,prep_folder):
     margin = 5
     extendbox = np.vstack([np.max([[0,0,0],box[:,0]-margin],0),np.min([newshape,box[:,1]+2*margin],axis=0).T]).T
     extendbox = extendbox.astype('int')
-
-
 
     convex_mask = m1
     dm1 = process_mask(m1)
@@ -128,7 +127,7 @@ def savenpy(id,annos,filelist,data_path,prep_folder):
                 extendbox[1,0]:extendbox[1,1],
                 extendbox[2,0]:extendbox[2,1]]
     sliceim = sliceim2[np.newaxis,...]
-    np.save(os.path.join(prep_folder,name+'_clean.npy'),sliceim)
+    np.save(p.join(prep_folder,name+'_clean.npy'),sliceim)
 
 
     if len(label)==0:
@@ -145,7 +144,7 @@ def savenpy(id,annos,filelist,data_path,prep_folder):
         label2[3] = label2[3]*spacing[1]/resolution[1]
         label2[:3] = label2[:3]-np.expand_dims(extendbox[:,0],1)
         label2 = label2[:4].T
-    np.save(os.path.join(prep_folder,name+'_label.npy'),label2)
+    np.save(p.join(prep_folder,name+'_label.npy'),label2)
 
     print(name)
 
@@ -157,7 +156,7 @@ def full_prep(step1=True, step2=True):
     data_path = config['stage1_data_path']
     finished_flag = '.flag_prepkaggle'
 
-    if not os.path.exists(finished_flag):
+    if not p.exists(finished_flag):
         alllabelfiles = config['stage1_annos_path']
         tmp = []
         for f in alllabelfiles:
@@ -167,7 +166,7 @@ def full_prep(step1=True, step2=True):
         alllabel = np.concatenate(tmp,0)
         filelist = os.listdir(config['stage1_data_path'])
 
-        if not os.path.exists(prep_folder):
+        if not p.exists(prep_folder):
             os.mkdir(prep_folder)
         #eng.addpath('preprocessing/',nargout=0)
 
@@ -192,7 +191,7 @@ def savenpy_luna(id,annos,filelist,luna_segment,luna_data,savepath):
 #     resolution = np.array([2,2,2])
     name = filelist[id]
 
-    Mask,origin,spacing,isflip = load_itk_image(os.path.join(luna_segment,name+'.mhd'))
+    Mask,origin,spacing,isflip = load_itk_image(p.join(luna_segment,name+'.mhd'))
     if isflip:
         Mask = Mask[:,::-1,::-1]
     newshape = np.round(np.array(Mask.shape)*spacing/resolution).astype('int')
@@ -219,7 +218,7 @@ def savenpy_luna(id,annos,filelist,luna_segment,luna_data,savepath):
         bone_thresh = 210
         pad_value = 170
 
-        sliceim,origin,spacing,isflip = load_itk_image(os.path.join(luna_data,name+'.mhd'))
+        sliceim,origin,spacing,isflip = load_itk_image(p.join(luna_data,name+'.mhd'))
         if isflip:
             sliceim = sliceim[:,::-1,::-1]
             print('flip!')
@@ -233,7 +232,7 @@ def savenpy_luna(id,annos,filelist,luna_segment,luna_data,savepath):
                     extendbox[1,0]:extendbox[1,1],
                     extendbox[2,0]:extendbox[2,1]]
         sliceim = sliceim2[np.newaxis,...]
-        np.save(os.path.join(savepath,name+'_clean.npy'),sliceim)
+        np.save(p.join(savepath,name+'_clean.npy'),sliceim)
 
 
     if islabel:
@@ -257,7 +256,7 @@ def savenpy_luna(id,annos,filelist,luna_segment,luna_data,savepath):
             label2[3] = label2[3]*spacing[1]/resolution[1]
             label2[:3] = label2[:3]-np.expand_dims(extendbox[:,0],1)
             label2 = label2[:4].T
-        np.save(os.path.join(savepath,name+'_label.npy'),label2)
+        np.save(p.join(savepath,name+'_label.npy'),label2)
 
     print(name)
 
@@ -268,11 +267,11 @@ def preprocess_luna():
     luna_label = config['luna_label']
     finished_flag = '.flag_preprocessluna'
     print('starting preprocessing luna')
-    if not os.path.exists(finished_flag):
+    if not p.exists(finished_flag):
         filelist = [f.split('.mhd')[0] for f in os.listdir(luna_data) if f.endswith('.mhd') ]
         annos = np.array(pandas.read_csv(luna_label))
 
-        if not os.path.exists(savepath):
+        if not p.exists(savepath):
             os.mkdir(savepath)
 
 
@@ -296,28 +295,32 @@ def prepare_luna():
     luna_segment = config['luna_segment']
     finished_flag = '.flag_prepareluna'
 
-    if not os.path.exists(finished_flag):
+    if not p.exists(finished_flag):
 
-        subsetdirs = [os.path.join(luna_raw,f) for f in os.listdir(luna_raw) if f.startswith('subset') and os.path.isdir(os.path.join(luna_raw,f))]
-        if not os.path.exists(luna_data):
+        subsetdirs = [
+            p.join(luna_raw,f)
+            for f in os.listdir(luna_raw)
+            if f.startswith('subset') and p.isdir(p.join(luna_raw,f))]
+
+        if not p.exists(luna_data):
             os.mkdir(luna_data)
 
-#         allnames = []
-#         for d in subsetdirs:
-#             files = os.listdir(d)
-#             names = [f[:-4] for f in files if f.endswith('mhd')]
-#             allnames = allnames + names
-#         allnames = np.array(allnames)
-#         allnames = np.sort(allnames)
+        # allnames = []
+        # for d in subsetdirs:
+        #     files = os.listdir(d)
+        #     names = [f[:-4] for f in files if f.endswith('mhd')]
+        #     allnames = allnames + names
+        # allnames = np.array(allnames)
+        # allnames = np.sort(allnames)
 
-#         ids = np.arange(len(allnames)).astype('str')
-#         ids = np.array(['0'*(3-len(n))+n for n in ids])
-#         pds = pandas.DataFrame(np.array([ids,allnames]).T)
-#         namelist = list(allnames)
+        # ids = np.arange(len(allnames)).astype('str')
+        # ids = np.array(['0'*(3-len(n))+n for n in ids])
+        # pds = pandas.DataFrame(np.array([ids,allnames]).T)
+        # namelist = list(allnames)
 
         abbrevs = np.array(pandas.read_csv(config['luna_abbr'],header=None))
-        namelist = list(abbrevs[:,1])
-        ids = abbrevs[:,0]
+        namelist = list(abbrevs[:, 1])
+        ids = abbrevs[:, 0]
 
         for d in subsetdirs:
             files = os.listdir(d)
@@ -326,22 +329,23 @@ def prepare_luna():
                 name = f[:-4]
                 id = ids[namelist.index(name)]
                 filename = '0'*(3-len(str(id)))+str(id)
-                shutil.move(os.path.join(d,f),os.path.join(luna_data,filename+f[-4:]))
-                print(os.path.join(luna_data,str(id)+f[-4:]))
+                shutil.move(p.join(d,f),p.join(luna_data,filename+f[-4:]))
+                print(p.join(luna_data,str(id)+f[-4:]))
 
         files = [f for f in os.listdir(luna_data) if f.endswith('mhd')]
         for file in files:
-            with open(os.path.join(luna_data,file),'r') as f:
+            with open(p.join(luna_data,file),'r') as f:
                 content = f.readlines()
                 id = file.split('.mhd')[0]
                 filename = '0'*(3-len(str(id)))+str(id)
                 content[-1]='ElementDataFile = '+filename+'.raw\n'
                 print(content[-1])
-            with open(os.path.join(luna_data,file),'w') as f:
+            with open(p.join(luna_data,file),'w') as f:
                 f.writelines(content)
 
 
         seglist = os.listdir(luna_segment)
+
         for f in seglist:
             if f.endswith('.mhd'):
 
@@ -352,24 +356,27 @@ def prepare_luna():
                 lastfix = f[-5:]
             if name in namelist:
                 id = ids[namelist.index(name)]
-                filename = '0'*(3-len(str(id)))+str(id)
+                filename = '0' * (3 - len(str(id))) + str(id)
 
-                shutil.move(os.path.join(luna_segment,f),os.path.join(luna_segment,filename+lastfix))
-                print(os.path.join(luna_segment,filename+lastfix))
+                shutil.move(p.join(luna_segment,f),p.join(luna_segment,filename+lastfix))
+                print(p.join(luna_segment,filename+lastfix))
 
 
         files = [f for f in os.listdir(luna_segment) if f.endswith('mhd')]
+
         for file in files:
-            with open(os.path.join(luna_segment,file),'r') as f:
+            with open(p.join(luna_segment,file),'r') as f:
                 content = f.readlines()
-                id =  file.split('.mhd')[0]
+                id = file.split('.mhd')[0]
                 filename = '0'*(3-len(str(id)))+str(id)
-                content[-1]='ElementDataFile = '+filename+'.zraw\n'
+                content[-1] = 'ElementDataFile = ' + filename + '.zraw\n'
                 print(content[-1])
-            with open(os.path.join(luna_segment,file),'w') as f:
+
+            with open(p.join(luna_segment,file),'w') as f:
                 f.writelines(content)
+
     print('end changing luna name')
-    f= open(finished_flag,"w+")
+    f = open(finished_flag,"w+")
 
 if __name__=='__main__':
     full_prep(step1=True,step2=True)
