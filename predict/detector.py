@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 from torch import nn
-from .layers import PostRes, Loss, GetPBB
+from .layers import Loss, PostRes, GetPBB
 
 config = {
     'anchors': [10.0, 30.0, 60.],
@@ -132,10 +132,8 @@ class Net(nn.Module):
         return out
 
 
-class Detector(Net):
-    def __init__(self, **kwargs):
-        super().__init__()
-        config.update(kwargs)
-        self.config = config
-        self.loss = Loss(config['num_hard'])
-        self.get_pbb = GetPBB(config)
+def get_model():
+    net = Net()
+    loss = Loss(config['num_hard'])
+    get_pbb = GetPBB(config)
+    return config, net, loss, get_pbb

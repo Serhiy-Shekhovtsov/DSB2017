@@ -4,49 +4,32 @@ import warnings
 from os import path as p
 from functools import partial
 from multiprocessing import Pool
+from itertools import islice
 
-import numpy as np
-import pandas as pd
 import dicom
-import scipy.ndimage
-import matplotlib.pyplot as plt
-import h5py
+import numpy as np
 
-from skimage import measure, morphology
+from skimage import measure
 from skimage.morphology import convex_hull_image
-from scipy.io import loadmat
+
+from scipy.ndimage import filters, binary_dilation, binary_erosion
 from scipy.ndimage.interpolation import zoom
-from scipy.ndimage.morphology import binary_dilation, generate_binary_structure
+from scipy.ndimage.morphology import (
+    binary_dilation as m_binary_dilation, generate_binary_structure,
+    distance_transform_edt)
+
+from .misc_utils import gendir
 
 keyfunc = lambda x: float(x.ImagePositionPatient[2])
 
 
-def make_s3_path(dirpath, key):
-    # key contains part of the dirpath, so we have to strip it out first
-    return '/'.join([dirpath] + key.split('/')[1:])
+def load_scan(case_path, limit=None):
+    _files = gendir(case_path, as_file_obj=True)
+    files = (
+        file for file in islice(_files, limit) if file.name.endswith('.dcm'))
 
-
-def load_scan(dirpath):
-    print('loading scan %s' % dirpath)
-
-    if dirpath.startswith('s3://'):
-        print('fetching files from %s' % dirpath)
-        import s3fs
-        import boto3
-
-        fs = s3fs.S3FileSystem()
-        bucket_name = dirpath.split('/')[2]
-        bucket = boto3.resource('s3').Bucket(bucket_name)
-        prefix = '%s/' % dirpath.split('/')[3]
-        print('parsed prefix %s' % prefix)
-        filtered = bucket.objects.filter(Prefix=prefix)
-        file_paths = (make_s3_path(dirpath, obj.key) for obj in filtered)
-        filelist = map(fs.open, file_paths)
-    else:
-        filelist = map(p.abspath, os.listdir(dirpath))
-
-    slices = sorted(map(dicom.read_file, filelist), key=keyfunc)
-    print('read %i slices' % len(slices))
+    dicom_objs = (dicom.read_file(file, force=True) for file in files)
+    slices = sorted(dicom_objs, key=keyfunc)
     first_slice_ipp = slices[0].ImagePositionPatient[2]
 
     if first_slice_ipp == slices[1].ImagePositionPatient[2]:
@@ -55,7 +38,7 @@ def load_scan(dirpath):
         while first_slice_ipp == slices[sec_num].ImagePositionPatient[2]:
             sec_num = sec_num + 1
 
-        slice_num = int(len(slices) / sec_num)
+        slice_num = int(len(slices) // sec_num)
         slices.sort(key=lambda x: float(x.InstanceNumber))
         slices = slices[0:slice_num]
         slices.sort(key=lambda x: float(x.ImagePositionPatient[2]))
@@ -75,6 +58,7 @@ def load_scan(dirpath):
 
 def get_pixels_hu(slices):
     image = np.stack([s.pixel_array for s in slices])
+
     # Convert to int16 (from sometimes int16),
     # should be possible as values should always be low enough (<32k)
     image = image.astype(np.int16)
@@ -90,7 +74,9 @@ def get_pixels_hu(slices):
 
         image[slice_number] += np.int16(intercept)
 
-    return np.array(image, dtype=np.int16), np.array([slices[0].SliceThickness] + slices[0].PixelSpacing, dtype=np.float32)
+    return (
+        np.array(image, dtype=np.int16),
+        np.array([slices[0].SliceThickness] + slices[0].PixelSpacing, dtype=np.float32))
 
 
 def binarize_per_slice(image, spacing, intensity_th=-600, sigma=1, area_th=30, eccen_th=0.99, bg_patch_size=10):
@@ -98,18 +84,20 @@ def binarize_per_slice(image, spacing, intensity_th=-600, sigma=1, area_th=30, e
 
     # prepare a mask, with all corner values set to nan
     image_size = image.shape[1]
-    grid_axis = np.linspace(-image_size/2+0.5, image_size/2-0.5, image_size)
+    grid_axis = np.linspace(-image_size // 2 + 0.5, image_size // 2 - 0.5, image_size)
     x, y = np.meshgrid(grid_axis, grid_axis)
     d = (x ** 2 + y ** 2) ** 0.5
-    nan_mask = (d < image_size / 2).astype(float)
+    nan_mask = (d < image_size // 2).astype(float)
     nan_mask[nan_mask == 0] = np.nan
 
     for i in range(image.shape[0]):
         # Check if corner pixels are identical, if so the slice  before Gaussian filtering
         if len(np.unique(image[i, 0:bg_patch_size, 0:bg_patch_size])) == 1:
-            current_bw = scipy.ndimage.filters.gaussian_filter(np.multiply(image[i].astype('float32'), nan_mask), sigma, truncate=2.0) < intensity_th
+            arg = np.multiply(image[i].astype('float32'), nan_mask)
+            current_bw = filters.gaussian_filter(arg, sigma, truncate=2.0) < intensity_th
         else:
-            current_bw = scipy.ndimage.filters.gaussian_filter(image[i].astype('float32'), sigma, truncate=2.0) < intensity_th
+            args = (image[i].astype('float32'), sigma)
+            current_bw = filters.gaussian_filter(*args, truncate=2.0) < intensity_th
 
         # select proper components
         label = measure.label(current_bw)
@@ -135,10 +123,14 @@ def all_slice_analysis(bw, spacing, cut_num=0, vol_limit=[0.68, 8.2], area_th=6e
     label = measure.label(bw, connectivity=1)
 
     # remove components access to corners
-    mid = int(label.shape[2] / 2)
-    bg_label = set([label[0, 0, 0], label[0, 0, -1], label[0, -1, 0], label[0, -1, -1], \
-                    label[-1-cut_num, 0, 0], label[-1-cut_num, 0, -1], label[-1-cut_num, -1, 0], label[-1-cut_num, -1, -1], \
-                    label[0, 0, mid], label[0, -1, mid], label[-1-cut_num, 0, mid], label[-1-cut_num, -1, mid]])
+    mid = int(label.shape[2] // 2)
+    bg_label = set(
+        [
+            label[0, 0, 0], label[0, 0, -1], label[0, -1, 0],
+            label[0, -1, -1], label[-1 - cut_num, 0, 0],
+            label[-1 - cut_num, 0, -1], label[-1 - cut_num, -1, 0],
+            label[-1 - cut_num, -1, -1], label[0, 0, mid], label[0, -1, mid],
+            label[-1 - cut_num, 0, mid], label[-1 - cut_num, -1, mid]])
 
     for l in bg_label:
         label[label == l] = 0
@@ -151,8 +143,8 @@ def all_slice_analysis(bw, spacing, cut_num=0, vol_limit=[0.68, 8.2], area_th=6e
             label[label == prop.label] = 0
 
     # prepare a distance map for further analysis
-    x_axis = np.linspace(-label.shape[1]/2+0.5, label.shape[1]/2-0.5, label.shape[1]) * spacing[1]
-    y_axis = np.linspace(-label.shape[2]/2+0.5, label.shape[2]/2-0.5, label.shape[2]) * spacing[2]
+    x_axis = np.linspace(-label.shape[1] // 2 + 0.5, label.shape[1] // 2 - 0.5, label.shape[1]) * spacing[1]
+    y_axis = np.linspace(-label.shape[2] // 2 + 0.5, label.shape[2] // 2 - 0.5, label.shape[2]) * spacing[2]
     x, y = np.meshgrid(x_axis, y_axis)
     d = (x ** 2 + y ** 2) ** 0.5
     vols = measure.regionprops(label)
@@ -175,11 +167,12 @@ def all_slice_analysis(bw, spacing, cut_num=0, vol_limit=[0.68, 8.2], area_th=6e
 
     # fill back the parts removed earlier
     if cut_num > 0:
-        # bw1 is bw with removed slices, bw2 is a dilated version of bw, part of their intersection is returned as final mask
+        # bw1 is bw with removed slices, bw2 is a dilated version of bw, part
+        # of their intersection is returned as final mask
         bw1 = np.copy(bw)
         bw1[-cut_num:] = bw0[-cut_num:]
         bw2 = np.copy(bw)
-        bw2 = scipy.ndimage.binary_dilation(bw2, iterations=cut_num)
+        bw2 = binary_dilation(bw2, iterations=cut_num)
         bw3 = bw1 & bw2
         label = measure.label(bw, connectivity=1)
         label3 = measure.label(bw3, connectivity=1)
@@ -187,7 +180,7 @@ def all_slice_analysis(bw, spacing, cut_num=0, vol_limit=[0.68, 8.2], area_th=6e
         valid_l3 = set()
 
         for l in l_list:
-            indices = np.nonzero(label==l)
+            indices = np.nonzero(label == l)
             l3 = label3[indices[0][0], indices[1][0], indices[2][0]]
 
             if l3 > 0:
@@ -201,9 +194,14 @@ def all_slice_analysis(bw, spacing, cut_num=0, vol_limit=[0.68, 8.2], area_th=6e
 def fill_hole(bw):
     # fill 3d holes
     label = measure.label(~bw)
+
     # identify corner components
-    bg_label = set([label[0, 0, 0], label[0, 0, -1], label[0, -1, 0], label[0, -1, -1], \
-                    label[-1, 0, 0], label[-1, 0, -1], label[-1, -1, 0], label[-1, -1, -1]])
+    bg_label = set(
+        [
+            label[0, 0, 0], label[0, 0, -1], label[0, -1, 0],
+            label[0, -1, -1], label[-1, 0, 0], label[-1, 0, -1],
+            label[-1, -1, 0], label[-1, -1, -1]])
+
     return ~np.in1d(label, list(bg_label)).reshape(label.shape)
 
 
@@ -218,9 +216,9 @@ def two_lung_only(bw, spacing, max_iter=22, max_ratio=4.8):
             count = 0
             sum = 0
 
-            while sum < np.sum(area)*cover:
-                sum = sum+area[count]
-                count = count+1
+            while sum < np.sum(area) * cover:
+                sum = sum + area[count]
+                count = count + 1
 
             filter = np.zeros(current_slice.shape, dtype=bool)
 
@@ -233,7 +231,7 @@ def two_lung_only(bw, spacing, max_iter=22, max_ratio=4.8):
         label = measure.label(bw)
         properties = measure.regionprops(label)
         properties.sort(key=lambda x: x.area, reverse=True)
-        return label==properties[0].label
+        return label == properties[0].label
 
     def fill_2d_hole(bw):
         for i in range(bw.shape[0]):
@@ -258,17 +256,17 @@ def two_lung_only(bw, spacing, max_iter=22, max_ratio=4.8):
         properties = measure.regionprops(label)
         properties.sort(key=lambda x: x.area, reverse=True)
 
-        if len(properties) > 1 and properties[0].area/properties[1].area < max_ratio:
+        if len(properties) > 1 and properties[0].area // properties[1].area < max_ratio:
             found_flag = True
             bw1 = label == properties[0].label
             bw2 = label == properties[1].label
         else:
-            bw = scipy.ndimage.binary_erosion(bw)
+            bw = binary_erosion(bw)
             iter_count = iter_count + 1
 
     if found_flag:
-        d1 = scipy.ndimage.morphology.distance_transform_edt(bw1 == False, sampling=spacing)
-        d2 = scipy.ndimage.morphology.distance_transform_edt(bw2 == False, sampling=spacing)
+        d1 = distance_transform_edt(bw1 is False, sampling=spacing)
+        d2 = distance_transform_edt(bw2 is False, sampling=spacing)
         bw1 = bw0 & (d1 < d2)
         bw2 = bw0 & (d1 > d2)
         bw1 = extract_main(bw1)
@@ -283,8 +281,8 @@ def two_lung_only(bw, spacing, max_iter=22, max_ratio=4.8):
     return bw1, bw2, bw
 
 
-def step1_python(case_path):
-    case = load_scan(case_path)
+def step1_python(case_path, limit=None):
+    case = load_scan(case_path, limit=limit)
     case_pixels, spacing = get_pixels_hu(case)
     bw = binarize_per_slice(case_pixels, spacing)
     flag = 0
@@ -294,54 +292,12 @@ def step1_python(case_path):
 
     while flag == 0 and cut_num < bw.shape[0]:
         bw = np.copy(bw0)
-        bw, flag = all_slice_analysis(bw, spacing, cut_num=cut_num, vol_limit=[0.68,7.5])
+        bw, flag = all_slice_analysis(bw, spacing, cut_num=cut_num, vol_limit=[0.68, 7.5])
         cut_num = cut_num + cut_step
 
     bw = fill_hole(bw)
     bw1, bw2, bw = two_lung_only(bw, spacing)
-
     return case_pixels, bw1, bw2, spacing
-
-if __name__ == '__main__':
-    INPUT_FOLDER = '/work/DataBowl3/stage1/stage1/'
-    patients = os.listdir(INPUT_FOLDER)
-    patients.sort()
-    case_pixels, m1, m2, spacing = step1_python(os.path.join(INPUT_FOLDER,patients[25]))
-    plt.imshow(m1[60])
-    plt.figure()
-    plt.imshow(m2[60])
-    # first_patient = load_scan(INPUT_FOLDER + patients[25])
-    # first_patient_pixels, spacing = get_pixels_hu(first_patient)
-    # plt.hist(first_patient_pixels.flatten(), bins=80, color='c')
-    # plt.xlabel("Hounsfield Units (HU)")
-    # plt.ylabel("Frequency")
-    # plt.show()
-
-    # # Show some slice in the middle
-    # h = 80
-    # plt.imshow(first_patient_pixels[h], cmap=plt.cm.gray)
-    # plt.show()
-
-    # bw = binarize_per_slice(first_patient_pixels, spacing)
-    # plt.imshow(bw[h], cmap=plt.cm.gray)
-    # plt.show()
-
-    # flag = 0
-    # cut_num = 0
-    # while flag == 0:
-    #     bw, flag = all_slice_analysis(bw, spacing, cut_num=cut_num)
-    #     cut_num = cut_num + 1
-    # plt.imshow(bw[h], cmap=plt.cm.gray)
-    # plt.show()
-
-    # bw = fill_hole(bw)
-    # plt.imshow(bw[h], cmap=plt.cm.gray)
-    # plt.show()
-
-    # bw1, bw2, bw = two_lung_only(bw, spacing)
-    # plt.imshow(bw[h], cmap=plt.cm.gray)
-    # plt.show()
-
 
 
 def process_mask(mask):
@@ -361,12 +317,12 @@ def process_mask(mask):
         convex_mask[i_layer] = mask2
 
     struct = generate_binary_structure(3, 1)
-    return binary_dilation(convex_mask, structure=struct, iterations=10)
+    return m_binary_dilation(convex_mask, structure=struct, iterations=10)
 
 
 def lumTrans(img):
     lungwin = np.array([-1200., 600.])
-    newimg = (img - lungwin[0]) / (lungwin[1] - lungwin[0])
+    newimg = (img - lungwin[0]) // (lungwin[1] - lungwin[0])
     newimg[newimg < 0] = 0
     newimg[newimg > 1] = 1
     return (newimg * 255).astype('uint8')
@@ -374,9 +330,9 @@ def lumTrans(img):
 
 def resample(imgs, spacing, new_spacing, order=2):
     if len(imgs.shape) == 3:
-        new_shape = np.round(imgs.shape * spacing / new_spacing)
-        true_spacing = spacing * imgs.shape / new_shape
-        resize_factor = new_shape / imgs.shape
+        new_shape = np.round(imgs.shape * spacing // new_spacing)
+        true_spacing = spacing * imgs.shape // new_shape
+        resize_factor = new_shape // imgs.shape
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -388,8 +344,8 @@ def resample(imgs, spacing, new_spacing, order=2):
         newimg = []
 
         for i in range(n):
-            slice = imgs[:,:,:,i]
-            newslice,true_spacing = resample(slice,spacing,new_spacing)
+            imgs_slice = imgs[:, :, :, i]
+            newslice, true_spacing = resample(imgs_slice, spacing, new_spacing)
             newimg.append(newslice)
 
         newimg = np.transpose(np.array(newimg), [1, 2, 3, 0])
@@ -398,27 +354,19 @@ def resample(imgs, spacing, new_spacing, order=2):
         raise ValueError('wrong shape')
 
 
-def savenpy(dirname, prep_folder, data_path, use_existing=True):
-    print('saving %s...' % dirname)
+def savenpy(img_dir, prep_dir, dirname, limit=None):
     resolution = np.array([1, 1, 1])
+    label_path = p.join(prep_dir, '{}_label.npy'.format(dirname))
+    clean_path = p.join(prep_dir, '{}_clean.npy'.format(dirname))
 
-    if use_existing:
-        label_path = p.join(prep_folder, dirname + '_label.npy')
-        clean_path = p.join(prep_folder, dirname + '_clean.npy')
-        exists = p.exists(label_path) and p.exists(clean_path)
+    if p.exists(label_path) and p.exists(clean_path):
+        processed = False
     else:
-        exists = False
-
-    if exists:
-        print(dirname + ' already processed')
-        processed = 0
-    else:
-        print(dirname + ' not yet processed')
-        case_path = p.join(data_path, dirname)
-        im, m1, m2, spacing = step1_python(case_path)
+        case_path = p.join(img_dir, dirname)
+        im, m1, m2, spacing = step1_python(case_path, limit=limit)
         Mask = m1 + m2
 
-        newshape = np.round(np.array(Mask.shape) * spacing / resolution)
+        newshape = np.round(np.array(Mask.shape) * spacing // resolution)
         xx, yy, zz = np.where(Mask)
         box = np.array(
             [
@@ -426,17 +374,16 @@ def savenpy(dirname, prep_folder, data_path, use_existing=True):
                 [np.min(yy), np.max(yy)],
                 [np.min(zz), np.max(zz)]])
 
-        box = box * np.expand_dims(spacing,1) / np.expand_dims(resolution, 1)
+        box = box * np.expand_dims(spacing, 1) // np.expand_dims(resolution, 1)
         box = np.floor(box).astype('int')
         margin = 5
         extendbox = np.vstack(
             [
-                np.max([[0, 0, 0], box[:,0] - margin], 0),
-                np.min([newshape, box[:,1] + 2 * margin], axis=0).T]).T
+                np.max([[0, 0, 0], box[:, 0] - margin], 0),
+                np.min([newshape, box[:, 1] + 2 * margin], axis=0).T]).T
 
         extendbox = extendbox.astype('int')
 
-        convex_mask = m1
         dm1 = process_mask(m1)
         dm2 = process_mask(m2)
         dilatedMask = dm1 + dm2
@@ -445,7 +392,7 @@ def savenpy(dirname, prep_folder, data_path, use_existing=True):
         bone_thresh = 210
         pad_value = 170
 
-        im[np.isnan(im)] =- 2000
+        im[np.isnan(im)] = -2000
         sliceim = lumTrans(im)
         sliceim = sliceim * dilatedMask + pad_value * (1 - dilatedMask).astype('uint8')
         bones = sliceim * extramask > bone_thresh
@@ -457,31 +404,27 @@ def savenpy(dirname, prep_folder, data_path, use_existing=True):
             extendbox[2, 0]:extendbox[2, 1]]
 
         sliceim = sliceim2[np.newaxis, ...]
-        np.save(p.join(prep_folder, dirname + '_clean'), sliceim)
-        np.save(p.join(prep_folder, dirname + '_label'), np.array([[0,0,0,0]]))
-        print(dirname + ' done')
-        processed = 1
+        np.save(p.join(prep_dir, dirname + '_clean'), sliceim)
+        np.save(p.join(prep_dir, dirname + '_label'), np.array([[0, 0, 0, 0]]))
+        processed = True
 
     return processed
 
 
-def full_prep(data_path, prep_folder, use_existing=True, **kwargs):
-    n_worker = kwargs.get('n_worker')
+def process(img_dir, prep_dir, dirlist, workers=None, min_length=2, **kwargs):
     warnings.filterwarnings('ignore')
 
-    if not p.exists(prep_folder):
-        os.mkdir(prep_folder)
+    if not p.exists(prep_dir):
+        os.mkdir(prep_dir)
 
-    pool = Pool(n_worker)
-    dirlist = kwargs.get('dirlist') or os.listdir(data_path)
-    print('start preprocessing %i directories...' % len(dirlist))
+    func = partial(savenpy, img_dir, prep_dir, limit=kwargs.get('limit'))
 
-    partial_savenpy = partial(
-        savenpy, prep_folder=prep_folder, data_path=data_path,
-        use_existing=use_existing)
+    if len(dirlist) >= min_length:
+        pool = Pool(workers)
+        mapped = pool.map(func, dirlist)
+        pool.close()
+        pool.join()
+    else:
+        mapped = list(map(func, dirlist))
 
-    mapped = pool.map(partial_savenpy, dirlist)
-    pool.close()
-    pool.join()
-    print('end preprocessing')
     return mapped
