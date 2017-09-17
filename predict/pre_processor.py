@@ -265,8 +265,8 @@ def two_lung_only(bw, spacing, max_iter=22, max_ratio=4.8):
             iter_count = iter_count + 1
 
     if found_flag:
-        d1 = distance_transform_edt(bw1 is False, sampling=spacing)
-        d2 = distance_transform_edt(bw2 is False, sampling=spacing)
+        d1 = distance_transform_edt(bw1 == False, sampling=spacing)
+        d2 = distance_transform_edt(bw2 == False, sampling=spacing)
         bw1 = bw0 & (d1 < d2)
         bw2 = bw0 & (d1 > d2)
         bw1 = extract_main(bw1)
@@ -330,9 +330,9 @@ def lumTrans(img):
 
 def resample(imgs, spacing, new_spacing, order=2):
     if len(imgs.shape) == 3:
-        new_shape = np.round(imgs.shape * spacing // new_spacing)
-        true_spacing = spacing * imgs.shape // new_shape
-        resize_factor = new_shape // imgs.shape
+        new_shape = np.round(imgs.shape * spacing / new_spacing)
+        true_spacing = spacing * imgs.shape / new_shape
+        resize_factor = new_shape / imgs.shape
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
